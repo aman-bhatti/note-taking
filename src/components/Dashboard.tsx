@@ -6,7 +6,7 @@ import { collection, query, getDocs, doc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 const Dashboard: React.FC = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, userName, logout } = useAuth();
   const [notes, setNotes] = useState<any[]>([]);
   const navigate = useNavigate();
 
@@ -52,6 +52,9 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="flex h-screen">
+      <h1 className="text-3xl font-bold mb-4">
+        Welcome {userName ? userName : currentUser?.email}!
+      </h1>
       <div className="flex-1 p-6 flex-grow container mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">My Notes</h2>

@@ -1,21 +1,27 @@
 // src/auth/AuthContext.tsx
 import React, { useContext, useState, useEffect, createContext } from "react";
+import { auth } from "../firebase";
 import {
+  GoogleAuthProvider,
+  signInWithPopup,
   onAuthStateChanged,
   User,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
 } from "firebase/auth";
-import { auth } from "../firebase";
 import { useNavigate } from "react-router-dom";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../firebase";
 
 interface AuthContextProps {
   currentUser: User | null;
+  userName: string | null;
   signup: (email: string, password: string) => Promise<any>;
   login: (email: string, password: string) => Promise<any>;
+  googleSignIn: () => Promise<any>;
   logout: () => Promise<void>;
-  loading: boolean; // Add a loading state to handle initial auth state
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -32,7 +38,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // Set loading to true initially
+  const [userName, setUserName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const signup = (email: string, password: string) => {
@@ -43,15 +50,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return signInWithEmailAndPassword(auth, email, password);
   };
 
+  const googleSignIn = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        setUserName(userDoc.data().name);
+      }
+      navigate("/");
+    } catch (error) {
+      console.error("Failed to sign in with Google:", error);
+    }
+  };
+
   const logout = async () => {
     await signOut(auth);
+    setUserName(null);
     navigate("/login");
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      setLoading(false); // Set loading to false once the auth state is determined
+      if (user) {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          setUserName(userDoc.data().name);
+        }
+      }
+      setLoading(false);
     });
 
     return unsubscribe;
@@ -59,8 +88,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const value = {
     currentUser,
+    userName,
     signup,
     login,
+    googleSignIn,
     logout,
     loading,
   };
