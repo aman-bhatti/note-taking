@@ -70,7 +70,10 @@ const Login: React.FC = () => {
           </button>
         </form>
         <div className="mt-4 text-center">
-          <GoogleLoginButton onClick={handleGoogleSignIn} />
+          <GoogleLoginButton
+            onClick={handleGoogleSignIn}
+            style={{ fontSize: "13px", width: "100%" }}
+          />
         </div>
         <p className="mt-6 text-center text-sm text-gray-600">
           Don't have an account?{" "}

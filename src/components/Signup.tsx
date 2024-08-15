@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { db } from "../firebase";
 import { doc, setDoc } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
 
 const Signup: React.FC = () => {
   const [name, setName] = useState("");
@@ -30,7 +31,14 @@ const Signup: React.FC = () => {
       });
       navigate("/");
     } catch (err) {
-      setError("Failed to create an account.");
+      if (
+        err instanceof FirebaseError &&
+        err.code === "auth/email-already-in-use"
+      ) {
+        setError("The email address is already in use by another account.");
+      } else {
+        setError("Failed to create an account.");
+      }
     }
   };
 
