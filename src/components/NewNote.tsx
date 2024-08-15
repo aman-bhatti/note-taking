@@ -6,11 +6,14 @@ import { db } from "../firebase";
 import { collection, addDoc, doc } from "firebase/firestore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import MonacoEditor from "@monaco-editor/react";
 
 const NewNote: React.FC = () => {
   const { currentUser } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [useMonacoEditor, setUseMonacoEditor] = useState(true); // Toggle state
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,6 +32,10 @@ const NewNote: React.FC = () => {
     } catch (error) {
       console.error("Error creating note:", error);
     }
+  };
+
+  const toggleEditor = () => {
+    setUseMonacoEditor(!useMonacoEditor); // Toggle between editors
   };
 
   return (
@@ -51,13 +58,34 @@ const NewNote: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700">
             Content (Markdown supported)
           </label>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            required
-            className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-            rows={10}
-          ></textarea>
+          <button
+            type="button"
+            onClick={toggleEditor}
+            className="bg-gray-500 text-white px-4 py-2 rounded mb-2"
+          >
+            Toggle to {useMonacoEditor ? "Text Editor" : "Code Editor"}
+          </button>
+          {useMonacoEditor ? (
+            <MonacoEditor
+              height="400px"
+              language="markdown"
+              theme="vs-dark"
+              value={content}
+              onChange={(value) => setContent(value || "")}
+              options={{
+                selectOnLineNumbers: true,
+              }}
+              className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+            />
+          ) : (
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              required
+              className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              rows={10}
+            ></textarea>
+          )}
         </div>
         <button
           type="submit"
@@ -69,7 +97,12 @@ const NewNote: React.FC = () => {
       <div className="mt-8">
         <h3 className="text-2xl font-bold mb-2">Preview</h3>
         <div className="prose">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+          >
+            {content}
+          </ReactMarkdown>
         </div>
       </div>
     </div>
