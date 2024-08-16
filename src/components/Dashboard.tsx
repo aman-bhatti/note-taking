@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthContext";
 import { db } from "../firebase";
 import { collection, query, getDocs, doc, orderBy } from "firebase/firestore"; // Import orderBy
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const Dashboard: React.FC = () => {
   const { currentUser, userName, logout } = useAuth();
@@ -55,6 +56,12 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Main Content */}
       <main className="flex-1 p-6">
+        <Link to="/note-tree" className="text-blue-500 underline">
+          View Note Tree
+        </Link>
+        <Link to="/tree-view" className="text-blue-500 underline">
+          View Note Tree
+        </Link>
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-gray-800">My Notes</h2>

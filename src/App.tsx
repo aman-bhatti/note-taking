@@ -11,6 +11,8 @@ import PrivateRoute from "./auth/PrivateRoute";
 import Layout from "./components/Layout";
 import PageTransition from "./components/pagetransition"; // Import the PageTransition component
 import EditNote from "./components/EditNote";
+import NoteTree from "./components/NoteTree";
+import EChartsTreeView from "./components/TreeChart";
 
 const App: React.FC = () => {
   return (
@@ -60,6 +62,23 @@ const App: React.FC = () => {
                 </PrivateRoute>
               }
             />
+            <Route
+              path="/note-tree"
+              element={
+                <PrivateRoute>
+                  <NoteTree />
+                </PrivateRoute>
+              }
+            />{" "}
+            <Route
+              path="/tree-view"
+              element={
+                <PrivateRoute>
+                  <EChartsTreeView />
+                </PrivateRoute>
+              }
+            />
+            {/* Add NoteTree Route */}
           </Routes>
         </Layout>
       </AuthProvider>

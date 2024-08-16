@@ -59,7 +59,7 @@ const NoteDetail: React.FC = () => {
         onClick={handleBackToAllNotes}
         className="text-blue-500 hover:underline rounded mb-4"
       >
-        Back to Dashboard
+        ← Back to Dashboard
       </button>
       <h1 className="text-3xl font-bold mb-4">{note.title}</h1>
       <div className="mb-4 text-sm text-gray-500">
