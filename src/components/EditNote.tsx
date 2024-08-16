@@ -1,40 +1,75 @@
-// src/components/NewNote.tsx
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+// src/components/EditNote.tsx
+import React, { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { db } from "../firebase";
-import { collection, addDoc, doc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import MonacoEditor from "@monaco-editor/react";
 import ToggleSwitch from "./toggle"; // Import the ToggleSwitch component
 
-const NewNote: React.FC = () => {
+const EditNote: React.FC = () => {
   const { currentUser } = useAuth();
+  const { noteId } = useParams<{ noteId: string }>();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [category, setCategory] = useState(""); // State for category
+  const [category, setCategory] = useState("");
   const [useMonacoEditor, setUseMonacoEditor] = useState(false); // Default to Text Editor
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchNote = async () => {
+      if (currentUser && noteId) {
+        const noteDocRef = doc(
+          db,
+          "users",
+          currentUser.email!,
+          "notes",
+          noteId,
+        );
+        const noteDoc = await getDoc(noteDocRef);
+        if (noteDoc.exists()) {
+          const noteData = noteDoc.data();
+          setTitle(noteData.title);
+          setContent(noteData.content);
+          setCategory(noteData.category);
+        } else {
+          console.error("No such note!");
+        }
+      }
+    };
+
+    fetchNote();
+  }, [currentUser, noteId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (currentUser) {
-        const userDocRef = doc(db, "users", currentUser.email!);
-        const notesCollectionRef = collection(userDocRef, "notes");
-        await addDoc(notesCollectionRef, {
+      if (currentUser && noteId) {
+        const noteDocRef = doc(
+          db,
+          "users",
+          currentUser.email!,
+          "notes",
+          noteId,
+        );
+        await updateDoc(noteDocRef, {
           title,
           content,
-          category, // Save the category along with other note details
-          createdAt: new Date(),
+          category,
+          updatedAt: new Date(), // Optional: you can track when the note was last updated
         });
-        navigate("/dashboard"); // Redirect back to the dashboard after creation
+        navigate("/dashboard"); // Redirect back to the dashboard after updating
       }
     } catch (error) {
-      console.error("Error creating note:", error);
+      console.error("Error updating note:", error);
     }
+  };
+
+  const handleCancel = () => {
+    navigate(`/note/${noteId}`); // Navigate back to the dashboard or the previous page
   };
 
   const handleToggle = () => {
@@ -43,7 +78,7 @@ const NewNote: React.FC = () => {
 
   return (
     <div className="p-6 max-w-site mx-auto container">
-      <h2 className="text-3xl font-bold mb-4">Create New Note</h2>
+      <h2 className="text-3xl font-bold mb-4">Edit Note</h2>
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700">
@@ -112,12 +147,21 @@ const NewNote: React.FC = () => {
             )}
           </div>
         </div>
-        <button
-          type="submit"
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          Save Note
-        </button>
+        <div className="flex justify-between">
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            Save Changes
+          </button>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="bg-gray-500 text-white px-4 py-2 rounded"
+          >
+            Cancel
+          </button>
+        </div>
       </form>
       <div className="mt-8">
         <h3 className="text-2xl font-bold mb-2">Preview</h3>
@@ -134,4 +178,4 @@ const NewNote: React.FC = () => {
   );
 };
 
-export default NewNote;
+export default EditNote;

@@ -6,12 +6,16 @@ import { db } from "../firebase";
 import { useAuth } from "../auth/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 
 const NoteDetail: React.FC = () => {
   const { noteId } = useParams<{ noteId: string }>();
   const { currentUser } = useAuth();
   const [note, setNote] = useState<any>(null);
   const navigate = useNavigate();
+  const handleEdit = () => {
+    navigate(`/edit-note/${noteId}`);
+  };
 
   useEffect(() => {
     const fetchNote = async () => {
@@ -46,26 +50,47 @@ const NoteDetail: React.FC = () => {
   };
 
   if (!note) {
-    return <div>Loading...</div>;
+    return <div className="container mx-auto">Loading...</div>;
   }
 
   return (
-    <div className="p-6 flex-grow container mx-auto px-4 py-4">
+    <div className="p-6 max-w-site mx-auto container">
       <button
         onClick={handleBackToAllNotes}
-        className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
+        className="text-blue-500 hover:underline rounded mb-4"
       >
-        Back to All Notes
+        Back to Dashboard
       </button>
-      <h2 className="text-3xl font-bold mb-4">{note.title}</h2>
-      <p className="text-sm text-gray-500 mb-6">
-        {new Date(note.createdAt.seconds * 1000).toLocaleDateString()}
-      </p>
-      <div className="prose">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+      <h1 className="text-3xl font-bold mb-4">{note.title}</h1>
+      <div className="mb-4 text-sm text-gray-500">
+        <span>Category: {note.category}</span>
+        <br />
+        {note.updatedAt ? (
+          <span>
+            Last edited:{" "}
+            {new Date(note.updatedAt.seconds * 1000).toLocaleString()}
+          </span>
+        ) : (
+          <span>
+            Created on:{" "}
+            {new Date(note.createdAt.seconds * 1000).toLocaleString()}
+          </span>
+        )}
+      </div>
+      <div className="prose mb-8">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeHighlight]}
+        >
           {note.content}
         </ReactMarkdown>
       </div>
+      <button
+        onClick={handleEdit}
+        className="bg-yellow-500 text-white px-4 py-2 rounded mt-4"
+      >
+        Edit Note
+      </button>
     </div>
   );
 };
