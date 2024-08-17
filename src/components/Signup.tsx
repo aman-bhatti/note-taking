@@ -2,8 +2,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { db } from "../firebase";
-import { doc, setDoc } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
 
 const Signup: React.FC = () => {
@@ -23,21 +21,19 @@ const Signup: React.FC = () => {
 
     try {
       setError(null);
-      const userCredential = await signup(email, password);
-      const user = userCredential.user;
-      await setDoc(doc(db, "users", user.uid), {
-        name,
-        email,
-      });
-      navigate("/");
+      const userCredential = await signup(email, password, name);
+      if (userCredential) {
+        navigate("/");
+      }
     } catch (err) {
+      console.error("Error during signup process:", err);
       if (
         err instanceof FirebaseError &&
         err.code === "auth/email-already-in-use"
       ) {
         setError("The email address is already in use by another account.");
       } else {
-        setError("Failed to create an account.");
+        setError("Failed to create an account. Please try again.");
       }
     }
   };

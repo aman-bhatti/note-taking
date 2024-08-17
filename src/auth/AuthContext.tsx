@@ -11,13 +11,13 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 
 interface AuthContextProps {
   currentUser: User | null;
   userName: string | null;
-  signup: (email: string, password: string) => Promise<any>;
+  signup: (email: string, password: string, name: string) => Promise<any>;
   login: (email: string, password: string) => Promise<any>;
   googleSignIn: () => Promise<any>;
   logout: () => Promise<void>;
@@ -42,8 +42,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const signup = (email: string, password: string) => {
-    return createUserWithEmailAndPassword(auth, email, password);
+  const signup = async (email: string, password: string, name: string) => {
+    // Ensure this returns the userCredential object
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password,
+    );
+
+    // Add user information to Firestore
+    const user = userCredential.user;
+    await setDoc(doc(db, "users", email), {
+      uid: user.uid,
+      name,
+      email,
+      createdAt: new Date(),
+    });
+
+    return userCredential; // Return this object for further use in Signup component
   };
 
   const login = (email: string, password: string) => {
@@ -55,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const userDoc = await getDoc(doc(db, "users", user.email!));
       if (userDoc.exists()) {
         setUserName(userDoc.data().name);
       }
@@ -75,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userDoc = await getDoc(doc(db, "users", user.email!));
         if (userDoc.exists()) {
           setUserName(userDoc.data().name);
         }
