@@ -119,19 +119,19 @@ const TreeChartView: React.FC = () => {
             {
               type: "tree",
               data: data,
-              top: "5%", // Adjust the top position to prevent overlap
-              left: "10%", // Adjust the left position for better spacing
-              bottom: "2%",
-              right: "15%",
+              top: "5%",
+              left: "5%", // Decreased left margin to give more space on the right
+              bottom: "5%",
+              right: "25%", // Increased right margin further
               symbolSize: 10,
               label: {
                 position: "left",
                 verticalAlign: "middle",
                 align: "right",
-                fontSize: 14,
+                fontSize: 12, // Reduced font size to help fit labels
               },
               itemStyle: {
-                borderColor: "#777", // Border color for nodes
+                borderColor: "#777",
               },
               lineStyle: {
                 width: 2,
@@ -142,6 +142,8 @@ const TreeChartView: React.FC = () => {
                   position: "right",
                   verticalAlign: "middle",
                   align: "left",
+                  fontSize: 10, // Further reduced font size
+                  overflow: "truncate",
                 },
               },
               expandAndCollapse: true,
@@ -170,8 +172,8 @@ const TreeChartView: React.FC = () => {
       <h1 className="text-3xl font-bold mb-4">Tree Chart View</h1>
       <ReactECharts
         option={option}
-        style={{ height: "600px", width: "100%" }}
-        onEvents={{ click: handleChartClick }} // Add click event handler
+        style={{ height: "800px", width: "100%" }} // Increased height and width for more space
+        onEvents={{ click: handleChartClick }}
       />
     </div>
   );
