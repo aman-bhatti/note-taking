@@ -16,6 +16,7 @@ import { useAuth } from "../../auth/AuthContext";
 import CalendarItemAdd from "./CalendarItemAdd";
 
 const localizer = momentLocalizer(moment);
+const apiKey = process.env.REACT_APP_CALENDARIFIC_API_KEY;
 
 const categoryColors: { [key: string]: string } = {
   General: "#2196f3",
@@ -102,7 +103,7 @@ const CalendarView: React.FC = () => {
         "https://calendarific.com/api/v2/holidays",
         {
           params: {
-            api_key: "YOUR_CALENDARIFIC_API_KEY",
+            api_key: apiKey,
             country: "US",
             year: new Date().getFullYear(),
           },
@@ -284,9 +285,24 @@ const CalendarView: React.FC = () => {
 
     handleCloseModal();
   };
+
   return (
     <div className="p-4 sm:p-6 max-w-site mx-auto container">
       <h1 className="text-2xl sm:text-3xl font-bold mb-4">Calendar View</h1>
+
+      {/* Category Colors Legend */}
+      <div className="flex space-x-4 mb-4">
+        {Object.entries(categoryColors).map(([category, color]) => (
+          <div key={category} className="flex items-center space-x-2">
+            <span
+              className="rounded w-4 h-4"
+              style={{ backgroundColor: color }}
+            ></span>
+            <span className="text-1xl">{category}</span>
+          </div>
+        ))}
+      </div>
+
       <Calendar
         localizer={localizer}
         events={events}
