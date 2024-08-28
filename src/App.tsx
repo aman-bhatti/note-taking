@@ -13,6 +13,9 @@ import PageTransition from "./components/pagetransition"; // Import the PageTran
 import EditNote from "./components/EditNote";
 import NoteTree from "./components/NoteTree";
 import EChartsTreeView from "./components/TreeChart";
+import Todo from "./components/Todo";
+import TodoDetail from "./components/TodoDetail";
+import CalendarView from "./components/Calendar/CalendarView";
 
 const App: React.FC = () => {
   return (
@@ -75,6 +78,30 @@ const App: React.FC = () => {
               element={
                 <PrivateRoute>
                   <EChartsTreeView />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/todos" // Route for Todos
+              element={
+                <PrivateRoute>
+                  <Todo />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/todo/:todoId"
+              element={
+                <PrivateRoute>
+                  <TodoDetail />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="calendar"
+              element={
+                <PrivateRoute>
+                  <CalendarView />
                 </PrivateRoute>
               }
             />
