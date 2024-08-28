@@ -16,7 +16,6 @@ import { useAuth } from "../../auth/AuthContext";
 import CalendarItemAdd from "./CalendarItemAdd";
 
 const localizer = momentLocalizer(moment);
-const apiKey = process.env.REACT_APP_CALENDARIFIC_API_KEY;
 
 const categoryColors: { [key: string]: string } = {
   General: "#2196f3",
@@ -98,20 +97,44 @@ const CalendarView: React.FC = () => {
   };
 
   const fetchHolidays = async () => {
+    const apiKey = process.env.REACT_APP_CALENDARIFIC_API_KEY;
+    const currentYear = new Date().getFullYear();
+    const nextYear = currentYear + 1;
+
     try {
-      const response = await axios.get(
+      // Fetch holidays for the current year
+      const responseCurrentYear = await axios.get(
         "https://calendarific.com/api/v2/holidays",
         {
           params: {
             api_key: apiKey,
             country: "US",
-            year: new Date().getFullYear(),
+            year: currentYear,
           },
         },
       );
 
+      // Fetch holidays for the next year
+      const responseNextYear = await axios.get(
+        "https://calendarific.com/api/v2/holidays",
+        {
+          params: {
+            api_key: apiKey,
+            country: "US",
+            year: nextYear,
+          },
+        },
+      );
+
+      // Combine holidays from both responses
+      const combinedHolidays = [
+        ...responseCurrentYear.data.response.holidays,
+        ...responseNextYear.data.response.holidays,
+      ];
+
       const mainHolidays = [
         "New Year's Day",
+        "New Year's Eve",
         "Martin Luther King Jr. Day",
         "Presidents' Day",
         "Memorial Day",
@@ -121,11 +144,12 @@ const CalendarView: React.FC = () => {
         "Veterans Day",
         "Thanksgiving Day",
         "Christmas Day",
+        "Halloween",
       ];
 
       const uniqueHolidays: { [key: string]: boolean } = {};
 
-      const holidays = response.data.response.holidays
+      const holidays = combinedHolidays
         .filter((holiday: any) => mainHolidays.includes(holiday.name))
         .filter((holiday: any) => {
           const holidayKey = `${holiday.name}-${holiday.date.iso}`;
@@ -135,13 +159,17 @@ const CalendarView: React.FC = () => {
           uniqueHolidays[holidayKey] = true;
           return true;
         })
-        .map((holiday: any) => ({
-          title: holiday.name,
-          start: new Date(holiday.date.iso),
-          end: new Date(holiday.date.iso),
-          category: "Holiday",
-          allDay: true,
-        }));
+        .map((holiday: any) => {
+          const start = moment(holiday.date.iso).startOf("day").toDate();
+          const end = moment(holiday.date.iso).endOf("day").toDate();
+          return {
+            title: holiday.name,
+            start,
+            end,
+            category: "Holiday",
+            allDay: true,
+          };
+        });
 
       return holidays;
     } catch (error) {
@@ -149,7 +177,6 @@ const CalendarView: React.FC = () => {
       return [];
     }
   };
-
   useEffect(() => {
     const combineEventsAndHolidays = async () => {
       const userEvents = await fetchUserEvents();
