@@ -22,13 +22,14 @@ const categoryColors: { [key: string]: string } = {
   Holiday: "#ffcc00",
   Work: "#4caf50",
   Personal: "#ff5722",
+  LeetCode: "#fda31c",
 };
 
 interface Event {
   id?: string;
   title: string;
   start: Date;
-  end: Date;
+  end?: Date; // Make end optional to handle events without end dates
   priority?: string;
   status?: string;
   category?: string;
@@ -77,16 +78,19 @@ const CalendarView: React.FC = () => {
       );
       try {
         const querySnapshot = await getDocs(eventsCollectionRef);
-        const fetchedEvents = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          title: doc.data().title,
-          start: doc.data().start.toDate(),
-          end: doc.data().end.toDate(),
-          priority: doc.data().priority,
-          status: doc.data().status,
-          category: doc.data().category || "General",
-          allDay: doc.data().allDay || false,
-        })) as Event[];
+        const fetchedEvents = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            title: data.title,
+            start: data.start.toDate(),
+            end: data.end ? data.end.toDate() : undefined, // Handle null end date
+            priority: data.priority,
+            status: data.status,
+            category: data.category || "General",
+            allDay: data.allDay || false,
+          } as Event;
+        });
         return fetchedEvents;
       } catch (error) {
         console.error("Error fetching user events:", error);
@@ -102,7 +106,6 @@ const CalendarView: React.FC = () => {
     const nextYear = currentYear + 1;
 
     try {
-      // Fetch holidays for the current year
       const responseCurrentYear = await axios.get(
         "https://calendarific.com/api/v2/holidays",
         {
@@ -114,7 +117,6 @@ const CalendarView: React.FC = () => {
         },
       );
 
-      // Fetch holidays for the next year
       const responseNextYear = await axios.get(
         "https://calendarific.com/api/v2/holidays",
         {
@@ -126,7 +128,6 @@ const CalendarView: React.FC = () => {
         },
       );
 
-      // Combine holidays from both responses
       const combinedHolidays = [
         ...responseCurrentYear.data.response.holidays,
         ...responseNextYear.data.response.holidays,
@@ -177,6 +178,7 @@ const CalendarView: React.FC = () => {
       return [];
     }
   };
+
   useEffect(() => {
     const combineEventsAndHolidays = async () => {
       const userEvents = await fetchUserEvents();
@@ -270,15 +272,19 @@ const CalendarView: React.FC = () => {
 
     try {
       // Prepare the event object to only include necessary fields
-      const eventToSave = {
+      const eventToSave: any = {
         title: newEvent.title,
         start: newEvent.start,
-        end: newEvent.end,
         priority: newEvent.priority || "Normal",
         status: newEvent.status || "Pending",
         category: newEvent.category || "General",
         allDay: newEvent.allDay || false,
       };
+
+      // Only include the 'end' field if it's defined
+      if (newEvent.end) {
+        eventToSave.end = newEvent.end;
+      }
 
       if (newEvent.id) {
         // Update existing event
@@ -334,7 +340,7 @@ const CalendarView: React.FC = () => {
         localizer={localizer}
         events={events}
         startAccessor="start"
-        endAccessor="end"
+        endAccessor={(event: Event) => event.end || event.start} // Fallback to start date if end date is not set
         selectable
         onSelectSlot={handleSelectSlot}
         onSelectEvent={handleSelectEvent}
@@ -380,10 +386,27 @@ const CalendarView: React.FC = () => {
             ✕
           </button>
           <h2 className="text-lg font-bold">{selectedEvent.title}</h2>
-          <p>
-            {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")} -{" "}
-            {moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")}
-          </p>
+          {selectedEvent.category === "LeetCode" ? (
+            <>
+              <p>
+                Started at:{" "}
+                {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")}
+              </p>
+              <p>
+                {selectedEvent.status === "Complete" && selectedEvent.end
+                  ? "Completed at: " +
+                    moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")
+                  : "Ongoing"}
+              </p>
+            </>
+          ) : (
+            <p>
+              {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")} -{" "}
+              {selectedEvent.end
+                ? moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")
+                : "End time not set"}
+            </p>
+          )}
           <div className="flex justify-end space-x-2 mt-2">
             <button
               onClick={handleEditClick}
@@ -400,13 +423,14 @@ const CalendarView: React.FC = () => {
           </div>
         </div>
       )}
+
       {showEditEventModal && selectedEvent && (
         <CalendarItemAdd
           initialData={{
             id: selectedEvent.id,
             title: selectedEvent.title,
             start: selectedEvent.start.toISOString(),
-            end: selectedEvent.end.toISOString(),
+            end: selectedEvent.end ? selectedEvent.end.toISOString() : "",
             priority: selectedEvent.priority || "Normal",
             status: selectedEvent.status || "Pending",
             category: selectedEvent.category || "General",

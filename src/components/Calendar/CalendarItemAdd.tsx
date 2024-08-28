@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 import moment from "moment";
+import { useAuth } from "../../auth/AuthContext";
+import { db } from "../../firebase";
+import { collection, addDoc, doc } from "firebase/firestore";
 
 interface CalendarItemFormProps {
   initialData: {
@@ -9,12 +12,23 @@ interface CalendarItemFormProps {
     end: string;
     priority: string;
     status: string;
-    category?: string; // Category field for event
-    allDay?: boolean; // Add allDay field to initialData
+    category?: string;
+    allDay?: boolean;
   };
   onSave: (event: any) => void;
   onCancel: () => void;
   isEdit?: boolean;
+}
+
+interface CalendarEvent {
+  id?: string;
+  title: string;
+  start: Date;
+  end?: Date | null; // Allow end to be null or undefined
+  priority: string;
+  status: string;
+  category?: string;
+  allDay?: boolean;
 }
 
 const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
@@ -23,13 +37,14 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
   onCancel,
   isEdit = false,
 }) => {
+  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     ...initialData,
     startDate: "",
     startTime: "",
     endDate: "",
     endTime: "",
-    allDay: initialData.allDay ?? false, // Initialize with allDay from initialData if available
+    allDay: initialData.allDay ?? false,
   });
 
   useEffect(() => {
@@ -42,7 +57,7 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
       startTime: startMoment.format("HH:mm"),
       endDate: endMoment.format("YYYY-MM-DD"),
       endTime: endMoment.format("HH:mm"),
-      allDay: initialData.allDay ?? false, // Use the allDay property from initialData, defaulting to false
+      allDay: initialData.allDay ?? false,
     });
   }, [initialData]);
 
@@ -51,11 +66,9 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
   ) => {
     const { name, value, type } = e.target;
     if (type === "checkbox" && e.target instanceof HTMLInputElement) {
-      // Handle "All Day" checkbox
       const isChecked = e.target.checked;
       setFormData((prev) => {
         if (isChecked) {
-          // Set start time to 12:00 AM and end time to 11:59 PM
           return {
             ...prev,
             allDay: true,
@@ -63,12 +76,11 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
             endTime: "23:59",
           };
         } else {
-          // Reset to default times if unchecking "All Day"
           return {
             ...prev,
             allDay: false,
-            startTime: "08:00", // Default start time
-            endTime: "17:00", // Default end time
+            startTime: "08:00",
+            endTime: "17:00",
           };
         }
       });
@@ -80,38 +92,58 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let startDateTime;
-    let endDateTime;
+    let startDateTime = moment(`${formData.startDate} ${formData.startTime}`);
+    let endDateTime: Date | undefined;
 
-    if (formData.allDay) {
-      // If it's an all-day event, set start to 12:00 AM and end to 11:59 PM on the same day
+    if (formData.category === "LeetCode") {
+      // Don't set end time for LeetCode events
+      endDateTime = undefined;
+    } else if (formData.allDay) {
       startDateTime = moment(formData.startDate).startOf("day");
-      endDateTime = moment(formData.startDate).endOf("day");
+      endDateTime = moment(formData.startDate).endOf("day").toDate();
     } else {
-      // Use the provided times for the event
-      startDateTime = moment(`${formData.startDate} ${formData.startTime}`);
-      endDateTime = moment(`${formData.endDate} ${formData.endTime}`);
+      endDateTime = moment(`${formData.endDate} ${formData.endTime}`).toDate();
     }
 
-    onSave({
-      ...formData,
+    const event: CalendarEvent = {
+      title: formData.title,
       start: startDateTime.toDate(),
-      end: endDateTime.toDate(),
-      allDay: formData.allDay, // Ensure allDay property is set correctly
-    });
+      end: endDateTime, // Assign end only if it's not undefined
+      priority: formData.priority,
+      status: formData.status,
+      category: formData.category,
+      allDay: formData.allDay,
+    };
+
+    // Automatically create a new note if the category is "LeetCode"
+    if (formData.category === "LeetCode" && currentUser) {
+      const userDocRef = doc(db, "users", currentUser.email!);
+      const notesCollectionRef = collection(userDocRef, "notes");
+
+      await addDoc(notesCollectionRef, {
+        title: formData.title,
+        content: `LeetCode event: ${formData.title}`,
+        category: "LeetCode",
+        createdAt: new Date(),
+        status: "In Progress",
+        leetcodeLink: "", // Optionally include a placeholder for the link if needed
+      });
+    }
+
+    onSave(event);
   };
 
   return (
     <div
       className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center"
-      style={{ zIndex: 1100 }} // Set a high z-index for the overlay
+      style={{ zIndex: 1100 }}
     >
       <div
         className="bg-white p-4 rounded-lg w-11/12 sm:w-3/4 md:w-1/2 lg:w-1/3 mx-auto"
-        style={{ zIndex: 1110, position: "relative" }} // Set a higher z-index for the modal content
+        style={{ zIndex: 1110, position: "relative" }}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <h2 className="text-lg sm:text-xl font-bold mb-4">
@@ -142,65 +174,64 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
               All Day Event
             </label>
           </div>
-          {!formData.allDay && (
-            <>
-              <div className="mb-4 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={formData.startDate}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    name="startTime"
-                    value={formData.startTime}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
+          <div className="mb-4 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Start Date
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={formData.startDate}
+                onChange={handleChange}
+                required
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Start Time
+              </label>
+              <input
+                type="time"
+                name="startTime"
+                value={formData.startTime}
+                onChange={handleChange}
+                required
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              />
+            </div>
+          </div>
+          {/* Conditionally render the end date and time inputs */}
+          {formData.category !== "LeetCode" && !formData.allDay && (
+            <div className="mb-4 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  End Date
+                </label>
+                <input
+                  type="date"
+                  name="endDate"
+                  value={formData.endDate}
+                  onChange={handleChange}
+                  required
+                  className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                />
               </div>
-              <div className="mb-4 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    name="endDate"
-                    value={formData.endDate}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    name="endTime"
-                    value={formData.endTime}
-                    onChange={handleChange}
-                    required
-                    className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                  />
-                </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  End Time
+                </label>
+                <input
+                  type="time"
+                  name="endTime"
+                  value={formData.endTime}
+                  onChange={handleChange}
+                  required
+                  className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                />
               </div>
-            </>
+            </div>
           )}
           {formData.allDay && (
             <div className="mb-4">
@@ -261,7 +292,7 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
               <option value="Holiday">Holiday</option>
               <option value="Work">Work</option>
               <option value="Personal">Personal</option>
-              {/* Add more categories as needed */}
+              <option value="LeetCode">LeetCode</option>
             </select>
           </div>
           <div className="flex justify-end space-x-4">

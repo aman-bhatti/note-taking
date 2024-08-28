@@ -1,7 +1,14 @@
-// src/components/NoteDetail.tsx
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../auth/AuthContext";
 import ReactMarkdown from "react-markdown";
@@ -12,10 +19,8 @@ const NoteDetail: React.FC = () => {
   const { noteId } = useParams<{ noteId: string }>();
   const { currentUser } = useAuth();
   const [note, setNote] = useState<any>(null);
+  const [lastEdited, setLastEdited] = useState<Date | null>(null);
   const navigate = useNavigate();
-  const handleEdit = () => {
-    navigate(`/edit-note/${noteId}`);
-  };
 
   useEffect(() => {
     const fetchNote = async () => {
@@ -30,7 +35,13 @@ const NoteDetail: React.FC = () => {
           );
           const noteDoc = await getDoc(noteDocRef);
           if (noteDoc.exists()) {
-            setNote(noteDoc.data());
+            const noteData = noteDoc.data();
+            setNote(noteData);
+            if (noteData.updatedAt) {
+              setLastEdited(noteData.updatedAt.toDate());
+            } else if (noteData.createdAt) {
+              setLastEdited(noteData.createdAt.toDate());
+            }
           } else {
             console.error("No such document!");
           }
@@ -45,8 +56,66 @@ const NoteDetail: React.FC = () => {
     fetchNote();
   }, [noteId, currentUser]);
 
+  const handleEdit = () => {
+    navigate(`/edit-note/${noteId}`);
+  };
+
   const handleBackToAllNotes = () => {
     navigate("/dashboard");
+  };
+
+  const handleCheckboxChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const isChecked = e.target.checked;
+
+    if (note && currentUser?.email) {
+      try {
+        const noteDocRef = doc(
+          db,
+          "users",
+          currentUser.email,
+          "notes",
+          noteId!,
+        );
+
+        const completionDate = isChecked ? new Date() : null;
+
+        await updateDoc(noteDocRef, {
+          status: isChecked ? "Complete" : "In Progress",
+          completedAt: completionDate,
+        });
+
+        // Update corresponding calendar event
+        const eventsCollectionRef = collection(
+          db,
+          "users",
+          currentUser.email,
+          "events",
+        );
+        const eventsQuery = query(
+          eventsCollectionRef,
+          where("title", "==", `LeetCode Note: ${note.title}`),
+        );
+        const eventSnapshot = await getDocs(eventsQuery);
+
+        eventSnapshot.forEach(async (eventDoc) => {
+          await updateDoc(eventDoc.ref, {
+            end: completionDate || eventDoc.data().start, // Update end date to current date if completed
+            status: isChecked ? "Complete" : "In Progress",
+          });
+        });
+
+        // Update local state
+        setNote({
+          ...note,
+          status: isChecked ? "Complete" : "In Progress",
+          completedAt: completionDate,
+        });
+      } catch (error) {
+        console.error("Error updating note status:", error);
+      }
+    }
   };
 
   if (!note) {
@@ -61,15 +130,20 @@ const NoteDetail: React.FC = () => {
       >
         ← Back to Dashboard
       </button>
-      <h1 className="text-3xl font-bold mb-4">{note.title}</h1>
+      <h1 className="text-3xl font-bold mb-4">
+        <a href={note.leetcodeLink} target="_blank" rel="noopener noreferrer">
+          {note.title}
+        </a>
+      </h1>
       <div className="mb-4 text-sm text-gray-500">
         <span>Category: {note.category}</span>
         <br />
-        {note.updatedAt ? (
+        {note.completedAt ? (
           <span>
-            Last edited:{" "}
-            {new Date(note.updatedAt.seconds * 1000).toLocaleString()}
+            Completed at: {new Date(note.completedAt).toLocaleString()}
           </span>
+        ) : lastEdited ? (
+          <span>Last edited: {lastEdited.toLocaleString()}</span>
         ) : (
           <span>
             Created on:{" "}
@@ -91,6 +165,20 @@ const NoteDetail: React.FC = () => {
       >
         Edit Note
       </button>
+
+      {note.category === "LeetCode" && (
+        <div className="mt-4">
+          <label className="inline-flex items-center">
+            <input
+              type="checkbox"
+              checked={note.status === "Complete"}
+              onChange={handleCheckboxChange}
+              className="form-checkbox h-4 w-4 text-green-500"
+            />
+            <span className="ml-2 text-sm text-gray-700">Mark as Complete</span>
+          </label>
+        </div>
+      )}
     </div>
   );
 };

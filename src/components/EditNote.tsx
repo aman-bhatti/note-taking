@@ -109,6 +109,7 @@ const EditNote: React.FC = () => {
             <option value="Personal">Personal</option>
             <option value="School">School</option>
             <option value="Other">Other</option>
+            <option value="LeetCode">LeetCode</option>
           </select>
         </div>
 
