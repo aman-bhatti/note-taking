@@ -47,7 +47,7 @@ const NewNote: React.FC = () => {
             "events",
           );
           const newEvent = {
-            title: `LeetCode Note: ${title}`,
+            title: `${title}`,
             start: noteCreationDate,
             end: null, // Initially no end date
             category: "LeetCode",

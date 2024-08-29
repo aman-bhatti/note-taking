@@ -1,0 +1,29 @@
+.event-time {
+  font-weight: bold;
+  font-size: 0.9em;
+  display: none;
+}
+
+.rbc-event-label {
+  font-weight: bold;
+}
+
+.rbc-event-content,
+.rbc-event-continues-earlier,
+.rbc-selected {
+  white-space: normal; /* Allow line breaks */
+  overflow: hidden; /* Prevent overflow */
+  text-overflow: ellipsis; /* Add ellipsis for overflow text */
+}
+
+.rbc-event,
+.rbc-event-continues-earlier,
+.rbc-selected {
+  word-wrap: break-word; /* Break words to fit within the box */
+  padding: 2px 4px; /* Add some padding for better readability */
+}
+
+.event-title {
+  content: "\a";
+  white-space: pre;
+}

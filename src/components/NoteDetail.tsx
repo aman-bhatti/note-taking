@@ -8,6 +8,7 @@ import {
   query,
   where,
   getDocs,
+  Timestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../auth/AuthContext";
@@ -37,6 +38,8 @@ const NoteDetail: React.FC = () => {
           if (noteDoc.exists()) {
             const noteData = noteDoc.data();
             setNote(noteData);
+
+            // Set last edited date
             if (noteData.updatedAt) {
               setLastEdited(noteData.updatedAt.toDate());
             } else if (noteData.createdAt) {
@@ -83,8 +86,14 @@ const NoteDetail: React.FC = () => {
 
         await updateDoc(noteDocRef, {
           status: isChecked ? "Complete" : "In Progress",
-          completedAt: completionDate,
+          completedAt: completionDate
+            ? Timestamp.fromDate(completionDate)
+            : null, // Ensure consistent storage format
         });
+
+        // Normalize title for consistency
+        const eventTitle = `${note.title}`;
+        console.log("Searching for events with title:", eventTitle);
 
         // Update corresponding calendar event
         const eventsCollectionRef = collection(
@@ -95,15 +104,26 @@ const NoteDetail: React.FC = () => {
         );
         const eventsQuery = query(
           eventsCollectionRef,
-          where("title", "==", `LeetCode Note: ${note.title}`),
+          where("title", "==", eventTitle),
         );
         const eventSnapshot = await getDocs(eventsQuery);
 
+        console.log(
+          "Events to update:",
+          eventSnapshot.docs.map((doc) => doc.data()),
+        );
+
         eventSnapshot.forEach(async (eventDoc) => {
           await updateDoc(eventDoc.ref, {
-            end: completionDate || eventDoc.data().start, // Update end date to current date if completed
+            end: completionDate
+              ? Timestamp.fromDate(completionDate)
+              : eventDoc.data().start, // Update end date to current date if completed
             status: isChecked ? "Complete" : "In Progress",
           });
+          console.log(
+            `Updated event ${eventDoc.id} with completion date:`,
+            completionDate,
+          );
         });
 
         // Update local state
@@ -122,6 +142,21 @@ const NoteDetail: React.FC = () => {
     return <div className="container mx-auto">Loading...</div>;
   }
 
+  // Safely extract and format dates
+  const formattedCreatedAt = note.createdAt
+    ? new Date(note.createdAt.seconds * 1000).toLocaleString()
+    : "Unknown";
+  const formattedUpdatedAt = lastEdited
+    ? lastEdited.toLocaleString()
+    : "Unknown";
+
+  // Check the type of completedAt and handle accordingly
+  const formattedCompletedAt = note.completedAt
+    ? note.completedAt instanceof Timestamp
+      ? note.completedAt.toDate().toLocaleString()
+      : new Date(note.completedAt).toLocaleString()
+    : null;
+
   return (
     <div className="p-6 max-w-site mx-auto container">
       <button
@@ -131,24 +166,25 @@ const NoteDetail: React.FC = () => {
         ← Back to Dashboard
       </button>
       <h1 className="text-3xl font-bold mb-4">
-        <a href={note.leetcodeLink} target="_blank" rel="noopener noreferrer">
-          {note.title}
-        </a>
+        {note.category === "LeetCode" && note.leetcodeLink ? (
+          <a href={note.leetcodeLink} target="_blank" rel="noopener noreferrer">
+            {note.title}
+          </a>
+        ) : (
+          note.title
+        )}
       </h1>
       <div className="mb-4 text-sm text-gray-500">
         <span>Category: {note.category}</span>
         <br />
-        {note.completedAt ? (
-          <span>
-            Completed at: {new Date(note.completedAt).toLocaleString()}
-          </span>
-        ) : lastEdited ? (
-          <span>Last edited: {lastEdited.toLocaleString()}</span>
-        ) : (
-          <span>
-            Created on:{" "}
-            {new Date(note.createdAt.seconds * 1000).toLocaleString()}
-          </span>
+        <span>Created on: {formattedCreatedAt}</span>
+        <br />
+        <span>Last edited: {formattedUpdatedAt}</span>
+        {note.category === "LeetCode" && formattedCompletedAt && (
+          <>
+            <br />
+            <span>Completed at: {formattedCompletedAt}</span>
+          </>
         )}
       </div>
       <div className="prose mb-8">

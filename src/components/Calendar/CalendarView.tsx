@@ -11,9 +11,13 @@ import {
   updateDoc,
   deleteDoc,
   doc,
+  query,
+  where,
 } from "firebase/firestore";
 import { useAuth } from "../../auth/AuthContext";
+import { useNavigate } from "react-router-dom";
 import CalendarItemAdd from "./CalendarItemAdd";
+import "../../styles/calendar.css";
 
 const localizer = momentLocalizer(moment);
 
@@ -29,7 +33,7 @@ interface Event {
   id?: string;
   title: string;
   start: Date;
-  end?: Date; // Make end optional to handle events without end dates
+  end?: Date | null; // Allow end to be null or undefined
   priority?: string;
   status?: string;
   category?: string;
@@ -38,6 +42,7 @@ interface Event {
 
 const CalendarView: React.FC = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [events, setEvents] = useState<Event[]>([]);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [showEditEventModal, setShowEditEventModal] = useState(false);
@@ -47,6 +52,7 @@ const CalendarView: React.FC = () => {
     end: new Date(),
   });
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [connectedNoteId, setConnectedNoteId] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
@@ -56,17 +62,15 @@ const CalendarView: React.FC = () => {
 
   const toggleForceUpdate = () => setForceUpdate(!forceUpdate);
 
-  const [formData, setFormData] = useState({
-    title: "",
-    startDate: "",
-    startTime: "",
-    endDate: "",
-    endTime: "",
-    priority: "Normal",
-    status: "Pending",
-    category: "General",
-    allDay: false,
-  });
+  useEffect(() => {
+    const combineEventsAndHolidays = async () => {
+      const userEvents = await fetchUserEvents();
+      const holidays = await fetchHolidays();
+      setEvents([...userEvents, ...holidays]);
+    };
+
+    combineEventsAndHolidays();
+  }, [currentUser, forceUpdate]);
 
   const fetchUserEvents = async () => {
     if (currentUser) {
@@ -84,7 +88,7 @@ const CalendarView: React.FC = () => {
             id: doc.id,
             title: data.title,
             start: data.start.toDate(),
-            end: data.end ? data.end.toDate() : undefined, // Handle null end date
+            end: data.end ? data.end.toDate() : undefined,
             priority: data.priority,
             status: data.status,
             category: data.category || "General",
@@ -101,36 +105,21 @@ const CalendarView: React.FC = () => {
   };
 
   const fetchHolidays = async () => {
-    const apiKey = process.env.REACT_APP_CALENDARIFIC_API_KEY;
     const currentYear = new Date().getFullYear();
     const nextYear = currentYear + 1;
 
     try {
       const responseCurrentYear = await axios.get(
-        "https://calendarific.com/api/v2/holidays",
-        {
-          params: {
-            api_key: apiKey,
-            country: "US",
-            year: currentYear,
-          },
-        },
+        `https://date.nager.at/api/v3/PublicHolidays/${currentYear}/US`,
       );
 
       const responseNextYear = await axios.get(
-        "https://calendarific.com/api/v2/holidays",
-        {
-          params: {
-            api_key: apiKey,
-            country: "US",
-            year: nextYear,
-          },
-        },
+        `https://date.nager.at/api/v3/PublicHolidays/${nextYear}/US`,
       );
 
       const combinedHolidays = [
-        ...responseCurrentYear.data.response.holidays,
-        ...responseNextYear.data.response.holidays,
+        ...responseCurrentYear.data,
+        ...responseNextYear.data,
       ];
 
       const mainHolidays = [
@@ -140,20 +129,19 @@ const CalendarView: React.FC = () => {
         "Presidents' Day",
         "Memorial Day",
         "Independence Day",
-        "Labor Day",
+        "Labour Day",
         "Columbus Day",
         "Veterans Day",
         "Thanksgiving Day",
         "Christmas Day",
-        "Halloween",
       ];
 
       const uniqueHolidays: { [key: string]: boolean } = {};
 
       const holidays = combinedHolidays
-        .filter((holiday: any) => mainHolidays.includes(holiday.name))
+        .filter((holiday: any) => mainHolidays.includes(holiday.localName))
         .filter((holiday: any) => {
-          const holidayKey = `${holiday.name}-${holiday.date.iso}`;
+          const holidayKey = `${holiday.localName}-${holiday.date}`;
           if (uniqueHolidays[holidayKey]) {
             return false;
           }
@@ -161,10 +149,10 @@ const CalendarView: React.FC = () => {
           return true;
         })
         .map((holiday: any) => {
-          const start = moment(holiday.date.iso).startOf("day").toDate();
-          const end = moment(holiday.date.iso).endOf("day").toDate();
+          const start = moment(holiday.date).startOf("day").toDate();
+          const end = moment(holiday.date).endOf("day").toDate();
           return {
-            title: holiday.name,
+            title: holiday.localName,
             start,
             end,
             category: "Holiday",
@@ -172,43 +160,33 @@ const CalendarView: React.FC = () => {
           };
         });
 
-      return holidays;
+      // Manually add Halloween and other custom holidays
+      const customHolidays = [
+        {
+          title: "Halloween",
+          start: moment(`${currentYear}-10-31`).startOf("day").toDate(),
+          end: moment(`${currentYear}-10-31`).endOf("day").toDate(),
+          category: "Holiday",
+          allDay: true,
+        },
+        {
+          title: "Halloween",
+          start: moment(`${nextYear}-10-31`).startOf("day").toDate(),
+          end: moment(`${nextYear}-10-31`).endOf("day").toDate(),
+          category: "Holiday",
+          allDay: true,
+        },
+        // Add more custom holidays here if needed
+      ];
+
+      return [...holidays, ...customHolidays];
     } catch (error) {
       console.error("Error fetching holidays:", error);
       return [];
     }
   };
 
-  useEffect(() => {
-    const combineEventsAndHolidays = async () => {
-      const userEvents = await fetchUserEvents();
-      const holidays = await fetchHolidays();
-      setEvents([...userEvents, ...holidays]);
-    };
-
-    combineEventsAndHolidays();
-  }, [currentUser, forceUpdate]);
-
-  const eventPropGetter = (event: Event) => {
-    const backgroundColor = categoryColors[event.category || "General"];
-    const isDimmed =
-      isDimming && (!selectedEvent || selectedEvent.id !== event.id);
-
-    return {
-      style: {
-        backgroundColor,
-        color: "white",
-        opacity: isDimmed ? 0.5 : 1,
-      },
-    };
-  };
-
   const handleSelectSlot = (slotInfo: SlotInfo) => {
-    const isAllDay =
-      slotInfo.slots.length === 1 &&
-      slotInfo.start.getHours() === 0 &&
-      slotInfo.end.getHours() === 0;
-
     setSelectedSlot({
       start: new Date(slotInfo.start),
       end: new Date(slotInfo.end),
@@ -218,7 +196,7 @@ const CalendarView: React.FC = () => {
     setShowAddEventModal(true);
   };
 
-  const handleSelectEvent = (
+  const handleSelectEvent = async (
     event: Event,
     e: React.SyntheticEvent<HTMLElement>,
   ) => {
@@ -227,10 +205,36 @@ const CalendarView: React.FC = () => {
     setShowEditEventModal(false);
     const mouseEvent = e.nativeEvent as MouseEvent;
     setMousePosition({ x: mouseEvent.clientX, y: mouseEvent.clientY });
+
+    // If the event is a LeetCode event, fetch the corresponding note
+    if (event.category === "LeetCode" && currentUser?.email) {
+      const noteTitle = event.title.replace("", "");
+      const notesCollectionRef = collection(
+        db,
+        "users",
+        currentUser.email,
+        "notes",
+      );
+      const notesQuery = query(
+        notesCollectionRef,
+        where("title", "==", noteTitle),
+      );
+      const notesSnapshot = await getDocs(notesQuery);
+
+      if (!notesSnapshot.empty) {
+        const noteDoc = notesSnapshot.docs[0];
+        setConnectedNoteId(noteDoc.id);
+      } else {
+        setConnectedNoteId(null);
+      }
+    } else {
+      setConnectedNoteId(null);
+    }
   };
 
   const handleEditClick = () => {
     if (selectedEvent) {
+      console.log("Editing event:", selectedEvent); // Debug: Log selected event details
       setShowEditEventModal(true);
       setShowEventPopup(false);
     }
@@ -260,6 +264,7 @@ const CalendarView: React.FC = () => {
     setShowEditEventModal(false);
     setShowEventPopup(false);
     setSelectedEvent(null);
+    setConnectedNoteId(null);
     setIsDimming(false);
     toggleForceUpdate();
   };
@@ -270,53 +275,69 @@ const CalendarView: React.FC = () => {
       return;
     }
 
+    // Ensure consistent title format for LeetCode events
+    const title =
+      newEvent.category === "LeetCode" ? `${newEvent.title}` : newEvent.title;
+
+    console.log("Saving event:", { ...newEvent, title });
+
     try {
-      // Prepare the event object to only include necessary fields
-      const eventToSave: any = {
-        title: newEvent.title,
+      const eventToSave = {
+        title: title, // Use normalized title
         start: newEvent.start,
+        end: newEvent.end ?? null,
         priority: newEvent.priority || "Normal",
         status: newEvent.status || "Pending",
         category: newEvent.category || "General",
         allDay: newEvent.allDay || false,
       };
 
-      // Only include the 'end' field if it's defined
-      if (newEvent.end) {
-        eventToSave.end = newEvent.end;
-      }
+      const eventsCollectionRef = collection(
+        db,
+        "users",
+        currentUser.email!,
+        "events",
+      );
 
       if (newEvent.id) {
         // Update existing event
-        const eventDocRef = doc(
-          db,
-          "users",
-          currentUser.email!,
-          "events",
-          newEvent.id,
-        );
+        const eventDocRef = doc(eventsCollectionRef, newEvent.id);
         await updateDoc(eventDocRef, eventToSave);
-        setEvents(
-          events.map((evt) =>
-            evt.id === newEvent.id ? { ...eventToSave, id: evt.id } : evt,
-          ),
-        );
+
+        setEvents((prevEvents) => {
+          const updatedEvents = prevEvents.map((evt) =>
+            evt.id === newEvent.id
+              ? { ...evt, ...eventToSave, id: newEvent.id }
+              : evt,
+          );
+          return updatedEvents;
+        });
       } else {
         // Add new event
-        const eventsCollectionRef = collection(
-          db,
-          "users",
-          currentUser.email!,
-          "events",
-        );
         const docRef = await addDoc(eventsCollectionRef, eventToSave);
-        setEvents([...events, { ...eventToSave, id: docRef.id }]);
+        const newEventWithId = { ...eventToSave, id: docRef.id };
+
+        setEvents((prevEvents) => [...prevEvents, newEventWithId]);
       }
     } catch (error) {
       console.error("Error saving event:", error);
     }
 
     handleCloseModal();
+  };
+
+  const eventPropGetter = (event: Event) => {
+    const backgroundColor = categoryColors[event.category || "General"];
+    const isDimmed =
+      isDimming && (!selectedEvent || selectedEvent.id !== event.id);
+
+    return {
+      style: {
+        backgroundColor,
+        color: "white",
+        opacity: isDimmed ? 0.5 : 1,
+      },
+    };
   };
 
   return (
@@ -340,7 +361,7 @@ const CalendarView: React.FC = () => {
         localizer={localizer}
         events={events}
         startAccessor="start"
-        endAccessor={(event: Event) => event.end || event.start} // Fallback to start date if end date is not set
+        endAccessor={(event: Event) => event.end || event.start}
         selectable
         onSelectSlot={handleSelectSlot}
         onSelectEvent={handleSelectEvent}
@@ -348,12 +369,14 @@ const CalendarView: React.FC = () => {
         views={[Views.DAY, Views.WEEK, Views.MONTH]}
         step={30}
         timeslots={1}
-        defaultView={Views.MONTH}
+        defaultView={Views.WEEK}
         min={new Date(1970, 1, 1, 8, 0, 0)}
         max={new Date(1970, 1, 1, 23, 0, 0)}
         eventPropGetter={eventPropGetter}
         className="text-xs sm:text-sm"
       />
+
+      {/* Add Event Modal */}
       {showAddEventModal && (
         <CalendarItemAdd
           initialData={{
@@ -369,6 +392,33 @@ const CalendarView: React.FC = () => {
           onCancel={handleCloseModal}
         />
       )}
+
+      {/* Edit Event Modal */}
+      {showEditEventModal && selectedEvent && (
+        <CalendarItemAdd
+          initialData={{
+            id: selectedEvent.id, // Ensure this is passed to maintain consistency
+            title: selectedEvent.title,
+            start: selectedEvent.start.toISOString(),
+            end: selectedEvent.end ? selectedEvent.end.toISOString() : "",
+            priority: selectedEvent.priority || "Normal",
+            status: selectedEvent.status || "Pending",
+            category: selectedEvent.category || "General",
+            allDay: selectedEvent.allDay || false,
+          }}
+          onSave={(event) => {
+            if (selectedEvent?.id) {
+              // Retain the id for the edited event
+              event.id = selectedEvent.id;
+            }
+            handleSaveEvent(event);
+          }}
+          onCancel={handleCloseModal}
+          isEdit={true}
+        />
+      )}
+
+      {/* Event Popup */}
       {showEventPopup && selectedEvent && (
         <div
           className="absolute bg-white border rounded-lg shadow-lg p-4"
@@ -386,60 +436,40 @@ const CalendarView: React.FC = () => {
             ✕
           </button>
           <h2 className="text-lg font-bold">{selectedEvent.title}</h2>
-          {selectedEvent.category === "LeetCode" ? (
-            <>
-              <p>
-                Started at:{" "}
-                {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")}
-              </p>
-              <p>
-                {selectedEvent.status === "Complete" && selectedEvent.end
-                  ? "Completed at: " +
-                    moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")
-                  : "Ongoing"}
-              </p>
-            </>
-          ) : (
+          <p>
+            {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")} -{" "}
+            {selectedEvent.end
+              ? moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")
+              : "End time not set"}
+          </p>
+          {selectedEvent.category === "LeetCode" && connectedNoteId && (
             <p>
-              {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")} -{" "}
-              {selectedEvent.end
-                ? moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")
-                : "End time not set"}
+              <a
+                href="#"
+                onClick={() => navigate(`/note/${connectedNoteId}`)}
+                className="text-blue-500 underline"
+              >
+                View connected note
+              </a>
             </p>
           )}
-          <div className="flex justify-end space-x-2 mt-2">
-            <button
-              onClick={handleEditClick}
-              className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-            >
-              Edit
-            </button>
-            <button
-              onClick={handleDeleteEvent}
-              className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-            >
-              Delete
-            </button>
-          </div>
+          {selectedEvent.category !== "Holiday" && (
+            <div className="flex justify-end space-x-2 mt-2">
+              <button
+                onClick={handleEditClick}
+                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+              >
+                Edit
+              </button>
+              <button
+                onClick={handleDeleteEvent}
+                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+              >
+                Delete
+              </button>
+            </div>
+          )}
         </div>
-      )}
-
-      {showEditEventModal && selectedEvent && (
-        <CalendarItemAdd
-          initialData={{
-            id: selectedEvent.id,
-            title: selectedEvent.title,
-            start: selectedEvent.start.toISOString(),
-            end: selectedEvent.end ? selectedEvent.end.toISOString() : "",
-            priority: selectedEvent.priority || "Normal",
-            status: selectedEvent.status || "Pending",
-            category: selectedEvent.category || "General",
-            allDay: selectedEvent.allDay || false,
-          }}
-          onSave={handleSaveEvent}
-          onCancel={handleCloseModal}
-          isEdit={true}
-        />
       )}
     </div>
   );
