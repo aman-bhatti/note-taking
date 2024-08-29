@@ -47,8 +47,8 @@ const NewNote: React.FC = () => {
             "events",
           );
           const newEvent = {
-            title: `${title}`,
-            start: noteCreationDate,
+            title: `${title}\n`, // Consistent title format
+            start: Timestamp.fromDate(noteCreationDate), // Convert to Firestore Timestamp
             end: null, // Initially no end date
             category: "LeetCode",
             allDay: false,
