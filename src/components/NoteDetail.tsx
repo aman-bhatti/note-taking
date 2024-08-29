@@ -4,7 +4,6 @@ import {
   doc,
   getDoc,
   updateDoc,
-  deleteDoc,
   collection,
   query,
   where,
@@ -16,8 +15,6 @@ import { useAuth } from "../auth/AuthContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faLink } from "@fortawesome/free-solid-svg-icons";
 
 const NoteDetail: React.FC = () => {
   const { noteId } = useParams<{ noteId: string }>();
@@ -141,20 +138,6 @@ const NoteDetail: React.FC = () => {
     }
   };
 
-  const handleDelete = async () => {
-    if (noteId && currentUser?.email) {
-      try {
-        const noteDocRef = doc(db, "users", currentUser.email, "notes", noteId);
-
-        await deleteDoc(noteDocRef);
-        console.log(`Note with ID ${noteId} deleted successfully.`);
-        navigate("/dashboard"); // Navigate back to dashboard after deletion
-      } catch (error) {
-        console.error("Error deleting note:", error);
-      }
-    }
-  };
-
   if (!note) {
     return <div className="container mx-auto">Loading...</div>;
   }
@@ -184,14 +167,8 @@ const NoteDetail: React.FC = () => {
       </button>
       <h1 className="text-3xl font-bold mb-4">
         {note.category === "LeetCode" && note.leetcodeLink ? (
-          <a
-            className="lc-title hover:underline hover:text-blue-500"
-            href={note.leetcodeLink}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href={note.leetcodeLink} target="_blank" rel="noopener noreferrer">
             {note.title}
-            <FontAwesomeIcon icon={faLink} size="xs" />
           </a>
         ) : (
           note.title
@@ -220,15 +197,9 @@ const NoteDetail: React.FC = () => {
       </div>
       <button
         onClick={handleEdit}
-        className="bg-yellow-500 text-white px-4 py-2 rounded mt-4 mr-2"
+        className="bg-yellow-500 text-white px-4 py-2 rounded mt-4"
       >
         Edit Note
-      </button>
-      <button
-        onClick={handleDelete}
-        className="bg-red-500 text-white px-4 py-2 rounded mt-4"
-      >
-        Delete Note
       </button>
 
       {note.category === "LeetCode" && (
