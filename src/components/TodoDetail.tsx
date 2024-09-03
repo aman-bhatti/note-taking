@@ -377,31 +377,41 @@ const TodoDetail: React.FC = () => {
                       </button>
                     </div>
                   ) : (
-                    <span className="flex-grow">{task.title}</span>
+                    <span
+                      className={`font-bold text-lg ${task.completed ? "line-through text-gray-500" : "text-gray-800"}`}
+                    >
+                      {task.title}
+                    </span>
                   )}
                   <div className="ml-auto">
                     <button
                       onClick={() => startEditingTask(task)}
-                      className="text-blue-500 hover:text-blue-700 mr-2 text-lg"
+                      className="bg-blue-200 text-blue-500 hover:bg-blue-300 hover:text-blue-700 mr-2 p-3 rounded-md transition-colors"
                     >
-                      <FaEdit size={20} />
+                      <FaEdit size={16} />
                     </button>
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="bg-red-200 text-red-500 hover:bg-red-300 hover:text-red-700 p-3 rounded-md transition-colors"
                     >
-                      <FaTrashAlt size={20} />
+                      <FaTrashAlt size={16} />
                     </button>
                   </div>
                 </div>
               </div>
             ))}
+            <div className="mt-5 font-bold text-xl">Add task</div>
             <div className="mt-4">
               <input
                 type="text"
                 placeholder="New task"
                 value={newTask}
                 onChange={(e) => setNewTask(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter") {
+                    addTask();
+                  }
+                }}
                 className="p-2 border rounded w-11/12"
               />
 
