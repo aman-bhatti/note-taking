@@ -233,7 +233,7 @@ const TodoDetail: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-site mx-auto container">
+    <div className="p-4 sm:p-6 max-w-full sm:max-w-lg md:max-w-xl lg:max-w-3xl mx-auto">
       <button
         onClick={handleBackToAllTodos}
         className="text-blue-500 hover:underline rounded mb-4"
@@ -241,38 +241,40 @@ const TodoDetail: React.FC = () => {
         ← Back to Todos
       </button>
       {todo ? (
-        <div className="bg-white shadow-lg rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
+        <div className="bg-white shadow-lg rounded-lg p-4 sm:p-6">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4">
             {isEditingTodo ? (
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="text-3xl font-bold p-2 border rounded-md flex-grow"
+                className="todo-name text-3xl font-bold p-2 border rounded-md flex-grow mb-4 lg:mb-0"
               />
             ) : (
-              <h1 className="text-3xl font-bold">{title}</h1>
+              <h1 className="text-3xl font-bold todo-name mb-4 lg:mb-0">
+                {title}
+              </h1>
             )}
-            <div>
+            <div className="flex space-x-2">
               <button
                 onClick={() =>
                   isEditingTodo ? cancelEditingTodo() : setIsEditingTodo(true)
                 }
-                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors mr-2"
+                className="todo-detail-button bg-gray-500 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-600 transition-colors w-auto"
               >
                 {isEditingTodo ? "Cancel" : "Edit"}
               </button>
               {isEditingTodo ? (
                 <button
                   onClick={handleUpdate}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors mr-2"
+                  className="todo-detail-button bg-blue-500 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-blue-600 transition-colors w-auto"
                 >
                   Update
                 </button>
               ) : null}
               <button
                 onClick={handleDelete}
-                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
+                className="todo-detail-button bg-red-500 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg hover:bg-red-600 transition-colors w-auto"
               >
                 Delete
               </button>
@@ -378,7 +380,7 @@ const TodoDetail: React.FC = () => {
                     </div>
                   ) : (
                     <span
-                      className={`font-bold text-lg ${task.completed ? "line-through text-gray-500" : "text-gray-800"}`}
+                      className={`todo-name font-bold text-lg ${task.completed ? "line-through text-gray-500" : "text-gray-800"}`}
                     >
                       {task.title}
                     </span>
@@ -386,13 +388,13 @@ const TodoDetail: React.FC = () => {
                   <div className="ml-auto">
                     <button
                       onClick={() => startEditingTask(task)}
-                      className="bg-blue-200 text-blue-500 hover:bg-blue-300 hover:text-blue-700 mr-2 p-3 rounded-md transition-colors"
+                      className="task-detail-button bg-blue-200 text-blue-500 hover:bg-blue-300 hover:text-blue-700 mr-2 p-2 sm:p-3 rounded-md transition-colors"
                     >
                       <FaEdit size={16} />
                     </button>
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="bg-red-200 text-red-500 hover:bg-red-300 hover:text-red-700 p-3 rounded-md transition-colors"
+                      className="task-detail-button bg-red-200 text-red-500 hover:bg-red-300 hover:text-red-700 p-2 sm:p-3 rounded-md transition-colors"
                     >
                       <FaTrashAlt size={16} />
                     </button>

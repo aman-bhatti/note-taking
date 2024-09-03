@@ -11,6 +11,10 @@
   max-width: 80rem;
 }
 
+main {
+  padding: 1.5rem;
+}
+
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
@@ -21,6 +25,31 @@ body {
   body {
     padding: 1rem;
     background-color: #f3f4f6;
+  }
+  main {
+    padding: 0;
+  }
+
+  .todo-name {
+    overflow-wrap: break-word; /* Allows words to break to fit within the container */
+    word-break: break-word; /* Ensures long words break to fit */
+    white-space: normal; /* Normal white space handling */
+    max-width: 100%; /* Ensures the text stays within the parent container */
+  }
+  .truncate-text {
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .todo-detail-button {
+    padding-left: 2px;
+    padding-right: 2px;
+    margin-bottom: 2px;
+  }
+  .task-detail-button {
+    margin-bottom: 2px;
+  }
+  .todo-detail-container {
   }
 }
 

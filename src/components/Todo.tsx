@@ -10,7 +10,13 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { Link } from "react-router-dom";
-import { FaArrowDown, FaArrowUp, FaTrashAlt, FaEdit } from "react-icons/fa";
+import {
+  FaArrowDown,
+  FaArrowUp,
+  FaTrashAlt,
+  FaEdit,
+  FaPlus,
+} from "react-icons/fa";
 
 interface Todo {
   id: string;
@@ -334,7 +340,87 @@ const Todo: React.FC = () => {
         )} border-l-4 rounded-lg mb-2 shadow-md`}
       >
         {editingContext.has(key) ? (
-          <div>{/* Editing form code remains the same */}</div>
+          <div className="flex flex-col space-y-4">
+            {/* Title Input */}
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="p-2 border rounded-md w-full"
+              placeholder="Edit title"
+            />
+
+            {/* Description Input */}
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              className="p-2 border rounded-md w-full"
+              placeholder="Edit description"
+              rows={3}
+            ></textarea>
+
+            {/* Category Select */}
+            <select
+              value={editCategory}
+              onChange={(e) => setEditCategory(e.target.value)}
+              className="p-2 border rounded-md w-full"
+            >
+              <option value="General">General</option>
+              <option value="Work">Work</option>
+              <option value="Personal">Personal</option>
+            </select>
+
+            {/* Importance Select */}
+            <select
+              value={editImportance}
+              onChange={(e) =>
+                setEditImportance(e.target.value as "High" | "Medium" | "Low")
+              }
+              className="p-2 border rounded-md w-full"
+            >
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+
+            {/* Due Date Input */}
+            <input
+              type="date"
+              value={editDueDate ? editDueDate.toISOString().split("T")[0] : ""}
+              onChange={(e) => setEditDueDate(new Date(e.target.value))}
+              className="p-2 border rounded-md w-full"
+            />
+
+            {/* Linked Note Select */}
+            <select
+              value={editLinkedNoteId}
+              onChange={(e) => setEditLinkedNoteId(e.target.value)}
+              className="p-2 border rounded-md w-full"
+            >
+              <option value="">Select a note (optional)</option>
+              {notes.map((note) => (
+                <option key={note.id} value={note.id}>
+                  {note.title}
+                </option>
+              ))}
+            </select>
+
+            {/* Save and Cancel Buttons */}
+            <div className="flex space-x-4">
+              <button
+                onClick={() => saveEditedTodo(todo.id, context)}
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => cancelEditingTodo(todo.id, context)}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
             <div className="flex flex-col md:flex-row items-start md:items-center">
@@ -346,7 +432,7 @@ const Todo: React.FC = () => {
               />
               <Link
                 to={`/todo/${todo.id}`}
-                className={`font-bold text-lg ${todo.completed ? "line-through text-gray-500" : "text-gray-800"} mb-2 md:mb-0`}
+                className={`font-bold text-lg ${todo.completed ? "line-through text-gray-500" : "text-gray-800"} mb-2 md:mb-0 text-balance todo-name`}
               >
                 {todo.title}
               </Link>
@@ -472,50 +558,117 @@ const Todo: React.FC = () => {
 
   return (
     <div className="p-6 max-w-site mx-auto container max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
-      <h1 className="text-3xl font-bold mb-4">Todos</h1>
-      <button
-        onClick={() => setShowAddTodo(!showAddTodo)}
-        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors mb-4 w-full sm:w-auto"
-      >
-        {showAddTodo ? "Cancel" : "Add Todo"}
-      </button>
+      <h1 className="text-3xl font-bold mb-4 truncate-text break-words">
+        Todos
+      </h1>
 
-      {showAddTodo && (
-        <form onSubmit={handleAddTodo} className="mb-6">
-          {error && <div className="text-red-500 mb-4">{error}</div>}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Title
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-            />
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Description
-            </label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              required
-              className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-              rows={3}
-            ></textarea>
-          </div>
-          {/* Other form fields remain the same */}
-          <button
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors w-full sm:w-auto"
-          >
-            Add Todo
-          </button>
-        </form>
-      )}
+      {/* Integrated Add Todo Box */}
+      <div
+        onClick={() => setShowAddTodo(!showAddTodo)}
+        className={`p-6 bg-gray-100 rounded-lg mb-4 shadow-md cursor-pointer ${showAddTodo ? "bg-gray-100" : ""}`}
+      >
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold text-black">Add Todo</h2>
+          {showAddTodo ? (
+            <FaArrowUp className="text-black" />
+          ) : (
+            <FaArrowDown className="text-black" />
+          )}
+        </div>
+        {showAddTodo && (
+          <form onSubmit={handleAddTodo} className="mt-4">
+            {error && <div className="text-red-500 mb-4">{error}</div>}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Title
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Description
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                rows={3}
+              ></textarea>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="General">General</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Importance
+              </label>
+              <select
+                value={importance}
+                onChange={(e) =>
+                  setImportance(e.target.value as "High" | "Medium" | "Low")
+                }
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Due Date
+              </label>
+              <input
+                type="date"
+                value={dueDate ? dueDate.toISOString().split("T")[0] : ""}
+                onChange={(e) => setDueDate(new Date(e.target.value))}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Linked Note (Optional)
+              </label>
+              <select
+                value={linkedNoteId}
+                onChange={(e) => setLinkedNoteId(e.target.value)}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="">Select a note (optional)</option>
+                {notes.map((note) => (
+                  <option key={note.id} value={note.id}>
+                    {note.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors w-full"
+            >
+              Add Todo
+            </button>
+          </form>
+        )}
+      </div>
 
       <div className="space-y-6">
         <div className="p-4 bg-blue-200 rounded-lg mb-4 shadow-md">
