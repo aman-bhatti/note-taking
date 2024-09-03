@@ -576,7 +576,11 @@ const Todo: React.FC = () => {
           )}
         </div>
         {showAddTodo && (
-          <form onSubmit={handleAddTodo} className="mt-4">
+          <form
+            onSubmit={handleAddTodo}
+            className="mt-4"
+            onClick={(e) => e.stopPropagation()} // Add this line to stop propagation
+          >
             {error && <div className="text-red-500 mb-4">{error}</div>}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700">
