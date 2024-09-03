@@ -1,27 +1,42 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { db } from "../firebase";
+import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import {
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  collection,
-  getDocs,
-} from "firebase/firestore";
+  FaTrashAlt,
+  FaEdit,
+  FaCalendarAlt,
+  FaFlag,
+  FaCheckCircle,
+  FaStickyNote,
+} from "react-icons/fa";
+import { FaPlus } from "react-icons/fa6";
+
+interface Task {
+  id: string;
+  title: string;
+  importance: string;
+  completed: boolean;
+}
 
 const TodoDetail: React.FC = () => {
   const { currentUser } = useAuth();
   const { todoId } = useParams<{ todoId: string }>();
   const [todo, setTodo] = useState<any>(null);
-  const [isEditing, setIsEditing] = useState(false); // State to handle editing
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
+  const [originalTitle, setOriginalTitle] = useState(""); // Original title
+  const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [originalDueDate, setOriginalDueDate] = useState<Date | null>(null); // Original due date
   const [importance, setImportance] = useState("Medium");
-  const [linkedNoteId, setLinkedNoteId] = useState<string | undefined>();
-  const [userNotes, setUserNotes] = useState<any[]>([]); // State to store the user's notes
+  const [originalImportance, setOriginalImportance] = useState("Medium"); // Original importance
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [newTask, setNewTask] = useState("");
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskImportance, setEditTaskImportance] = useState("Low");
+  const [isEditingTodo, setIsEditingTodo] = useState(false); // State to handle editing of the todo
+  const [linkedNoteTitle, setLinkedNoteTitle] = useState<string | null>(null); // State for linked note title
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,33 +54,39 @@ const TodoDetail: React.FC = () => {
           const todoData = todoSnapshot.data();
           setTodo(todoData);
           setTitle(todoData.title);
-          setDescription(todoData.description);
-          setCategory(todoData.category);
+          setOriginalTitle(todoData.title); // Store original title
+          if (todoData.dueDate) {
+            const localDueDate = new Date(todoData.dueDate);
+            setDueDate(localDueDate);
+            setOriginalDueDate(localDueDate); // Store original due date
+          } else {
+            setDueDate(null);
+            setOriginalDueDate(null);
+          }
+
           setImportance(todoData.importance);
-          setLinkedNoteId(todoData.linkedNoteId);
+          setOriginalImportance(todoData.importance); // Store original importance
+          setTasks(todoData.tasks || []);
+
+          // Fetch linked note title if linkedNoteId exists
+          if (todoData.linkedNoteId) {
+            const noteDocRef = doc(
+              db,
+              "users",
+              currentUser.email!,
+              "notes",
+              todoData.linkedNoteId,
+            );
+            const noteSnapshot = await getDoc(noteDocRef);
+            if (noteSnapshot.exists()) {
+              setLinkedNoteTitle(noteSnapshot.data().title);
+            }
+          }
         }
       }
     };
 
-    const fetchUserNotes = async () => {
-      if (currentUser) {
-        const notesCollectionRef = collection(
-          db,
-          "users",
-          currentUser.email!,
-          "notes",
-        );
-        const notesSnapshot = await getDocs(notesCollectionRef);
-        const notesData = notesSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setUserNotes(notesData);
-      }
-    };
-
     fetchTodo();
-    fetchUserNotes();
   }, [currentUser, todoId]);
 
   const handleBackToAllTodos = () => {
@@ -75,22 +96,21 @@ const TodoDetail: React.FC = () => {
   const handleUpdate = async () => {
     if (currentUser && todoId) {
       const todoDocRef = doc(db, "users", currentUser.email!, "todos", todoId);
-      await updateDoc(todoDocRef, {
-        title,
-        description,
-        category,
-        importance,
-        linkedNoteId,
-      });
-      setIsEditing(false); // Exit editing mode after update
       const updatedTodo = {
         title,
-        description,
-        category,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         importance,
-        linkedNoteId,
+        tasks: todo.tasks, // Keep tasks unchanged during update
       };
-      setTodo(updatedTodo); // Update local state with new values
+      await updateDoc(todoDocRef, updatedTodo);
+      setTodo((prev: any) => ({
+        ...prev,
+        ...updatedTodo,
+      }));
+      setOriginalTitle(title); // Update the original title after successful update
+      setOriginalDueDate(dueDate); // Update the original due date
+      setOriginalImportance(importance); // Update the original importance
+      setIsEditingTodo(false); // Exit editing mode after update
     }
   };
 
@@ -108,8 +128,107 @@ const TodoDetail: React.FC = () => {
           todoId,
         );
         await deleteDoc(todoDocRef);
-        navigate("/todos"); // Navigate back to the todos list page
+        navigate("/todos");
       }
+    }
+  };
+
+  // Function to cancel editing
+  const cancelEditingTodo = () => {
+    setTitle(originalTitle); // Reset the title to its original value
+    setDueDate(originalDueDate); // Reset the due date to its original value
+    setImportance(originalImportance); // Reset the importance to its original value
+    setIsEditingTodo(false); // Exit editing mode
+  };
+
+  const addTask = () => {
+    if (newTask.trim()) {
+      const newTaskObj: Task = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: newTask,
+        importance: "Low", // Default importance to "Low"
+        completed: false,
+      };
+      const updatedTasks = [...tasks, newTaskObj];
+      setTasks(updatedTasks);
+      setNewTask("");
+
+      // Save tasks to Firestore
+      if (currentUser && todoId) {
+        const todoDocRef = doc(
+          db,
+          "users",
+          currentUser.email!,
+          "todos",
+          todoId,
+        );
+        updateDoc(todoDocRef, { tasks: updatedTasks });
+      }
+    }
+  };
+
+  const deleteTask = (taskId: string) => {
+    const updatedTasks = tasks.filter((task) => task.id !== taskId);
+    setTasks(updatedTasks);
+
+    // Save tasks to Firestore
+    if (currentUser && todoId) {
+      const todoDocRef = doc(db, "users", currentUser.email!, "todos", todoId);
+      updateDoc(todoDocRef, { tasks: updatedTasks });
+    }
+  };
+
+  const toggleTaskCompletion = (taskId: string) => {
+    const updatedTasks = tasks.map((task) =>
+      task.id === taskId ? { ...task, completed: !task.completed } : task,
+    );
+    setTasks(updatedTasks);
+
+    // Save tasks to Firestore
+    if (currentUser && todoId) {
+      const todoDocRef = doc(db, "users", currentUser.email!, "todos", todoId);
+      updateDoc(todoDocRef, { tasks: updatedTasks });
+    }
+  };
+
+  const startEditingTask = (task: Task) => {
+    setEditTaskId(task.id);
+    setEditTaskTitle(task.title);
+    setEditTaskImportance(task.importance);
+  };
+
+  const cancelEditingTask = () => {
+    setEditTaskId(null);
+    setEditTaskTitle("");
+    setEditTaskImportance("Low");
+  };
+
+  const saveEditedTask = () => {
+    const updatedTasks = tasks.map((task) =>
+      task.id === editTaskId
+        ? { ...task, title: editTaskTitle, importance: editTaskImportance }
+        : task,
+    );
+    setTasks(updatedTasks);
+    cancelEditingTask();
+
+    // Save tasks to Firestore
+    if (currentUser && todoId) {
+      const todoDocRef = doc(db, "users", currentUser.email!, "todos", todoId);
+      updateDoc(todoDocRef, { tasks: updatedTasks });
+    }
+  };
+
+  const getImportanceClasses = (importance: string) => {
+    switch (importance) {
+      case "High":
+        return "bg-red-100 border-red-300";
+      case "Medium":
+        return "bg-yellow-100 border-yellow-300";
+      case "Low":
+        return "bg-green-100 border-green-300";
+      default:
+        return "bg-gray-100 border-gray-300";
     }
   };
 
@@ -121,123 +240,179 @@ const TodoDetail: React.FC = () => {
       >
         ← Back to Todos
       </button>
-      <h2 className="text-3xl font-bold mb-4">Todo Details</h2>
       {todo ? (
-        <div>
-          {isEditing ? (
-            <>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Title:</h3>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                />
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Description:</h3>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                />
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Category:</h3>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                >
-                  <option value="Work">Work</option>
-                  <option value="Personal">Personal</option>
-                  <option value="Shopping">Shopping</option>
-                  <option value="Other">Other</option>
-                  {/* Add more categories as needed */}
-                </select>
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Importance:</h3>
-                <select
-                  value={importance}
-                  onChange={(e) => setImportance(e.target.value)}
-                  className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                >
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">
-                  Linked Note (Optional):
-                </h3>
-                <select
-                  value={linkedNoteId}
-                  onChange={(e) => setLinkedNoteId(e.target.value)}
-                  className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                >
-                  <option value="">None</option>
-                  {userNotes.map((note) => (
-                    <option key={note.id} value={note.id}>
-                      {note.title || note.content}{" "}
-                      {/* Adjust based on your note data structure */}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        <div className="bg-white shadow-lg rounded-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            {isEditingTodo ? (
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="text-3xl font-bold p-2 border rounded-md flex-grow"
+              />
+            ) : (
+              <h1 className="text-3xl font-bold">{title}</h1>
+            )}
+            <div>
               <button
-                onClick={handleUpdate}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg mr-2"
+                onClick={() =>
+                  isEditingTodo ? cancelEditingTodo() : setIsEditingTodo(true)
+                }
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors mr-2"
               >
-                Update
+                {isEditingTodo ? "Cancel" : "Edit"}
               </button>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="bg-gray-500 text-white px-4 py-2 rounded-lg"
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Title:</h3>
-                <p className="mt-1">{todo.title}</p>
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Description:</h3>
-                <p className="mt-1">{todo.description}</p>
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Category:</h3>
-                <p className="mt-1">{todo.category}</p>
-              </div>
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold">Importance:</h3>
-                <p className="mt-1">{todo.importance}</p>
-              </div>
-              {todo.linkedNoteId && (
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold">Linked Note:</h3>
-                  <p className="mt-1">{todo.linkedNoteId}</p>
-                </div>
-              )}
-              <button
-                onClick={() => setIsEditing(true)}
-                className="bg-green-500 text-white px-4 py-2 rounded-lg mr-2"
-              >
-                Edit
-              </button>
+              {isEditingTodo ? (
+                <button
+                  onClick={handleUpdate}
+                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors mr-2"
+                >
+                  Update
+                </button>
+              ) : null}
               <button
                 onClick={handleDelete}
-                className="bg-red-500 text-white px-4 py-2 rounded-lg"
+                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
               >
                 Delete
               </button>
-            </>
+            </div>
+          </div>
+          <div className="mb-4 flex items-center">
+            <FaCalendarAlt className="text-gray-600 mr-2" />
+            <span className="font-semibold mr-1">Due Date:</span>{" "}
+            {isEditingTodo ? (
+              <input
+                type="date"
+                value={dueDate ? dueDate.toISOString().split("T")[0] : ""}
+                onChange={(e) => setDueDate(new Date(e.target.value))}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              />
+            ) : dueDate ? (
+              dueDate.toLocaleDateString()
+            ) : (
+              "No due date set"
+            )}
+          </div>
+          <div className="mb-4 flex items-center">
+            <FaFlag className="text-gray-600 mr-2" />
+            <span className="font-semibold mr-1">Importance:</span>{" "}
+            {isEditingTodo ? (
+              <select
+                value={importance}
+                onChange={(e) => setImportance(e.target.value)}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            ) : (
+              importance
+            )}
+          </div>
+          <div className="mb-4 flex items-center">
+            <FaCheckCircle className="text-gray-600 mr-2" />
+            <span className="font-semibold mr-1">Completed:</span>{" "}
+            {todo.completed ? "Yes" : "No"}
+          </div>
+
+          {linkedNoteTitle && (
+            <div className="mb-4 flex items-center">
+              <FaStickyNote className="text-gray-600 mr-2" />
+              <span className="font-semibold mr-1">Linked Note:</span>{" "}
+              <Link
+                to={`/note/${todo.linkedNoteId}`}
+                className="text-blue-500 hover:underline"
+              >
+                {linkedNoteTitle}
+              </Link>
+            </div>
           )}
+
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold">Tasks:</h2>
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                className={`flex items-center justify-between p-4 my-2 border-l-4 ${getImportanceClasses(
+                  task.importance,
+                )} rounded-lg shadow-sm`}
+              >
+                <div className="flex items-center w-full">
+                  <input
+                    type="checkbox"
+                    checked={task.completed}
+                    onChange={() => toggleTaskCompletion(task.id)}
+                    className="mr-2"
+                  />
+                  {editTaskId === task.id ? (
+                    <div className="flex-grow">
+                      <input
+                        type="text"
+                        value={editTaskTitle}
+                        onChange={(e) => setEditTaskTitle(e.target.value)}
+                        className="p-2 border rounded w-1/2 mr-2"
+                      />
+                      <select
+                        value={editTaskImportance}
+                        onChange={(e) => setEditTaskImportance(e.target.value)}
+                        className="p-2 border rounded w-1/2"
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                      <button
+                        onClick={saveEditedTask}
+                        className="text-green-500 hover:text-green-700 mr-2"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={cancelEditingTask}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="flex-grow">{task.title}</span>
+                  )}
+                  <div className="ml-auto">
+                    <button
+                      onClick={() => startEditingTask(task)}
+                      className="text-blue-500 hover:text-blue-700 mr-2 text-lg"
+                    >
+                      <FaEdit size={20} />
+                    </button>
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <FaTrashAlt size={20} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="mt-4">
+              <input
+                type="text"
+                placeholder="New task"
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                className="p-2 border rounded w-11/12"
+              />
+
+              <button
+                onClick={addTask}
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors ml-2"
+              >
+                <FaPlus />
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <p>Loading...</p>
