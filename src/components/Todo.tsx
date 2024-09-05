@@ -17,6 +17,7 @@ import {
   FaEdit,
   FaPlus,
 } from "react-icons/fa";
+import { IoIosDocument } from "react-icons/io";
 
 interface Todo {
   id: string;
@@ -29,6 +30,7 @@ interface Todo {
   createdAt: Date;
   dueDate: Date | null;
   tasks: Task[];
+  isOverdue?: boolean;
 }
 
 interface Task {
@@ -294,6 +296,16 @@ const Todo: React.FC = () => {
       );
     }
 
+    // Sort and filter overdue tasks
+    const now = new Date();
+    filteredTodos.forEach((todo) => {
+      if (todo.dueDate && new Date(todo.dueDate) < now && !todo.completed) {
+        todo.isOverdue = true;
+      } else {
+        todo.isOverdue = false;
+      }
+    });
+
     switch (sortCategory) {
       case "Due Date":
         filteredTodos.sort(
@@ -335,9 +347,9 @@ const Todo: React.FC = () => {
     return (
       <div
         key={todo.id}
-        className={`p-4 ${getImportanceClasses(
-          todo.importance,
-        )} border-l-4 rounded-lg mb-2 shadow-md`}
+        className={`p-4 ${getImportanceClasses(todo.importance)} border-l-4 rounded-lg mb-2 shadow-md ${
+          todo.isOverdue ? "border-red-600 bg-red-100" : ""
+        }`}
       >
         {editingContext.has(key) ? (
           <div className="flex flex-col space-y-4">
@@ -359,63 +371,85 @@ const Todo: React.FC = () => {
               rows={3}
             ></textarea>
 
-            {/* Category Select */}
-            <select
-              value={editCategory}
-              onChange={(e) => setEditCategory(e.target.value)}
-              className="p-2 border rounded-md w-full"
-            >
-              <option value="General">General</option>
-              <option value="Work">Work</option>
-              <option value="Personal">Personal</option>
-            </select>
+            {/* Category Input */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Category
+              </label>
+              <select
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="General">General</option>
+                <option value="Work">Work</option>
+                <option value="Personal">Personal</option>
+              </select>
+            </div>
 
-            {/* Importance Select */}
-            <select
-              value={editImportance}
-              onChange={(e) =>
-                setEditImportance(e.target.value as "High" | "Medium" | "Low")
-              }
-              className="p-2 border rounded-md w-full"
-            >
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </select>
+            {/* Importance Input */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Importance
+              </label>
+              <select
+                value={editImportance}
+                onChange={(e) =>
+                  setEditImportance(e.target.value as "High" | "Medium" | "Low")
+                }
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
 
             {/* Due Date Input */}
-            <input
-              type="date"
-              value={editDueDate ? editDueDate.toISOString().split("T")[0] : ""}
-              onChange={(e) => setEditDueDate(new Date(e.target.value))}
-              className="p-2 border rounded-md w-full"
-            />
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Due Date
+              </label>
+              <input
+                type="date"
+                value={
+                  editDueDate ? editDueDate.toISOString().split("T")[0] : ""
+                }
+                onChange={(e) => setEditDueDate(new Date(e.target.value))}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              />
+            </div>
 
-            {/* Linked Note Select */}
-            <select
-              value={editLinkedNoteId}
-              onChange={(e) => setEditLinkedNoteId(e.target.value)}
-              className="p-2 border rounded-md w-full"
-            >
-              <option value="">Select a note (optional)</option>
-              {notes.map((note) => (
-                <option key={note.id} value={note.id}>
-                  {note.title}
-                </option>
-              ))}
-            </select>
+            {/* Linked Note Input */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Linked Note (Optional)
+              </label>
+              <select
+                value={editLinkedNoteId}
+                onChange={(e) => setEditLinkedNoteId(e.target.value)}
+                className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              >
+                <option value="">Select a note (optional)</option>
+                {notes.map((note) => (
+                  <option key={note.id} value={note.id}>
+                    {note.title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             {/* Save and Cancel Buttons */}
             <div className="flex space-x-4">
               <button
                 onClick={() => saveEditedTodo(todo.id, context)}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
               >
                 Save
               </button>
               <button
                 onClick={() => cancelEditingTodo(todo.id, context)}
-                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors"
               >
                 Cancel
               </button>
@@ -439,8 +473,12 @@ const Todo: React.FC = () => {
             </div>
             <div className="flex flex-col md:flex-row items-start md:items-center">
               {todo.dueDate && (
-                <span className="mr-2 text-gray-600">
-                  Due: {formatDate(new Date(todo.dueDate))}
+                <span
+                  className={`mr-2 ${todo.isOverdue ? "text-red-600" : "text-gray-600"}`}
+                >
+                  {todo.isOverdue
+                    ? "Overdue!"
+                    : `Due: ${formatDate(new Date(todo.dueDate))}`}
                 </span>
               )}
               <button
@@ -468,12 +506,16 @@ const Todo: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Expand the tasks when the dropdown is open */}
         {expandedTodos.has(key) && !editingContext.has(key) && (
           <div
             className={`mt-4 p-4 rounded-md ${getLighterImportanceClasses(todo.importance)}`}
           >
             {/* Lighter background container based on importance */}
-            <p className="text-gray-700">{todo.description}</p>
+            <p className="text-black">Description: </p>
+            <p className="text-gray-700"> {todo.description}</p>
+            <p className="text-black">Importance: {todo.importance}</p>
             {todo.tasks.length > 0 && (
               <div className="mt-2">
                 <h4 className="font-semibold">Tasks:</h4>
@@ -481,10 +523,18 @@ const Todo: React.FC = () => {
                   {todo.tasks.map((task) => (
                     <li
                       key={task.id}
-                      className={`p-2 rounded ${getImportanceClasses(
-                        task.importance,
-                      )}`}
+                      className={`p-4 todo-name rounded-md ${getImportanceClasses(task.importance)} ${
+                        task.completed
+                          ? "line-through text-gray-500"
+                          : "text-gray-800"
+                      }`}
                     >
+                      <input
+                        type="checkbox"
+                        checked={task.completed}
+                        readOnly
+                        className="mr-2"
+                      />
                       {task.title}
                     </li>
                   ))}
@@ -492,12 +542,19 @@ const Todo: React.FC = () => {
               </div>
             )}
             {todo.linkedNoteId && (
-              <Link
-                to={`/note/${todo.linkedNoteId}`}
-                className="ml-4 text-blue-500 underline"
-              >
-                View Note
-              </Link>
+              <div className="mt-3">
+                <p className="text-black">View Connected Note:</p>{" "}
+                {/* Text above the link */}
+                <Link
+                  to={`/note/${todo.linkedNoteId}`}
+                  className=" text-blue-500 underline flex items-center" // Flex to align icon and title
+                >
+                  <IoIosDocument className="mr-2" />{" "}
+                  {/* Margin-right for spacing */}
+                  {notes.find((note) => note.id === todo.linkedNoteId)?.title ||
+                    "Unknown Note"}
+                </Link>
+              </div>
             )}
           </div>
         )}
@@ -557,7 +614,7 @@ const Todo: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-site mx-auto container max-w-full md:max-w-3xl lg:max-w-4xl xl:max-w-5xl">
+    <div className="p-6 max-w-site mx-auto container md:max-w-5x1 lg:max-w-5x1 xl:max-w-5x1">
       <h1 className="text-3xl font-bold mb-4 truncate-text break-words">
         Todos
       </h1>
@@ -674,8 +731,8 @@ const Todo: React.FC = () => {
         )}
       </div>
 
-      <div className="space-y-6">
-        <div className="p-4 bg-blue-200 rounded-lg mb-4 shadow-md">
+      <div className="space-y-4">
+        <div className="p-5 bg-blue-200 rounded-lg mb-4 shadow-md">
           <h2 className="text-2xl font-semibold mb-2 text-blue-600">
             Due Today
           </h2>
