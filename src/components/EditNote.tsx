@@ -3,7 +3,15 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { db } from "../firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  query,
+  collection,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -55,16 +63,53 @@ const EditNote: React.FC = () => {
           "notes",
           noteId,
         );
+
+        // Fetch the current note to get the original title
+        const noteDoc = await getDoc(noteDocRef);
+        const originalTitle = noteDoc.exists() ? noteDoc.data().title : "";
+
+        // Update the note with the new title and content
         await updateDoc(noteDocRef, {
           title,
           content,
           category,
-          updatedAt: new Date(), // Optional: you can track when the note was last updated
+          updatedAt: new Date(), // Track when the note was last updated
         });
-        navigate("/dashboard"); // Redirect back to the dashboard after updating
+
+        // If the category is LeetCode, update the corresponding calendar event
+        if (category === "LeetCode" && originalTitle) {
+          const eventsCollectionRef = collection(
+            db,
+            "users",
+            currentUser.email!,
+            "events",
+          );
+
+          // Query for the calendar event with the old title (before the update)
+          const eventsQuery = query(
+            eventsCollectionRef,
+            where("title", "==", originalTitle), // Use original title to find the event
+          );
+          const eventSnapshot = await getDocs(eventsQuery);
+
+          // Update the calendar event with the new title and other details
+          if (!eventSnapshot.empty) {
+            const eventDoc = eventSnapshot.docs[0]; // Assuming there's only one corresponding event
+            const eventDocRef = doc(eventsCollectionRef, eventDoc.id);
+
+            await updateDoc(eventDocRef, {
+              title, // Use the updated title from the note
+              status: "In Progress", // Update other fields as necessary
+              updatedAt: new Date(), // Track when the event was last updated
+            });
+          }
+        }
+
+        // Redirect back to the dashboard after updating
+        navigate("/dashboard");
       }
     } catch (error) {
-      console.error("Error updating note:", error);
+      console.error("Error updating note or calendar event:", error);
     }
   };
 

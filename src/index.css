@@ -11,6 +11,10 @@
   max-width: 80rem;
 }
 
+.prose {
+  --tw-prose-bullets: black;
+}
+
 main {
   padding: 1.5rem;
 }
@@ -24,7 +28,7 @@ body {
 @media (max-width: 1200px) {
   body {
     padding: 1rem;
-    background-color: #f3f4f6;
+    background-color: white;
   }
   main {
     padding: 0;

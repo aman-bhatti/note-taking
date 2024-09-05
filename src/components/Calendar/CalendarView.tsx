@@ -3,16 +3,18 @@ import React, { useState, useEffect } from "react";
 import { Calendar, momentLocalizer, SlotInfo, Views } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
+import { EventPropGetter } from "react-big-calendar";
 import { db } from "../../firebase";
 import {
   collection,
   getDocs,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
   query,
   where,
+  addDoc,
 } from "firebase/firestore";
 import { useAuth } from "../../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +22,7 @@ import CalendarItemAdd from "./CalendarItemAdd";
 import "../../styles/calendar.css";
 
 const localizer = momentLocalizer(moment);
+const DragAndDropCalendar = withDragAndDrop(Calendar);
 
 const categoryColors: { [key: string]: string } = {
   General: "#2196f3",
@@ -33,7 +36,7 @@ interface Event {
   id?: string;
   title: string;
   start: Date;
-  end?: Date | null; // Allow end to be null or undefined
+  end?: Date | null;
   priority?: string;
   status?: string;
   category?: string;
@@ -64,44 +67,74 @@ const CalendarView: React.FC = () => {
 
   useEffect(() => {
     const combineEventsAndHolidays = async () => {
-      const userEvents = await fetchUserEvents();
-      const holidays = await fetchHolidays();
-      setEvents([...userEvents, ...holidays]);
+      if (currentUser) {
+        const eventsCollectionRef = collection(
+          db,
+          "users",
+          currentUser.email!,
+          "events",
+        );
+        const querySnapshot = await getDocs(eventsCollectionRef);
+
+        const userEvents: Event[] = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            title: data.title,
+            start: data.start.toDate(), // Convert Firestore Timestamp to Date
+            end: data.end ? data.end.toDate() : null,
+            priority: data.priority || "Normal",
+            status: data.status || "Pending",
+            category: data.category || "General",
+            allDay: data.allDay || false,
+          };
+        });
+
+        const holidays = await fetchHolidays();
+        setEvents([...userEvents, ...holidays]);
+      }
     };
 
     combineEventsAndHolidays();
   }, [currentUser, forceUpdate]);
 
-  const fetchUserEvents = async () => {
-    if (currentUser) {
-      const eventsCollectionRef = collection(
+  const moveEvent = async ({ event, start, end }: any) => {
+    const updatedEvent = { ...event, start, end };
+    setEvents((prevEvents) =>
+      prevEvents.map((evt) => (evt.id === event.id ? updatedEvent : evt)),
+    );
+
+    if (currentUser && event.id) {
+      const eventDocRef = doc(
         db,
         "users",
         currentUser.email!,
         "events",
+        event.id,
       );
-      try {
-        const querySnapshot = await getDocs(eventsCollectionRef);
-        const fetchedEvents = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            title: data.title,
-            start: data.start.toDate(),
-            end: data.end ? data.end.toDate() : undefined,
-            priority: data.priority,
-            status: data.status,
-            category: data.category || "General",
-            allDay: data.allDay || false,
-          } as Event;
-        });
-        return fetchedEvents;
-      } catch (error) {
-        console.error("Error fetching user events:", error);
-        return [];
-      }
+      await updateDoc(eventDocRef, { start, end });
     }
-    return [];
+  };
+
+  const resizeEvent = async ({ event, start, end }: any) => {
+    const updatedEvent = { ...event, start, end }; // Updates the start and end times
+
+    // Update the event in local state
+    setEvents((prevEvents) =>
+      prevEvents.map((evt) => (evt.id === event.id ? updatedEvent : evt)),
+    );
+
+    // Update the event in Firestore
+    if (currentUser && event.id) {
+      const eventDocRef = doc(
+        db,
+        "users",
+        currentUser.email!,
+        "events",
+        event.id,
+      );
+      await updateDoc(eventDocRef, { start, end });
+    }
   };
 
   const fetchHolidays = async () => {
@@ -160,26 +193,7 @@ const CalendarView: React.FC = () => {
           };
         });
 
-      // Manually add Halloween and other custom holidays
-      const customHolidays = [
-        {
-          title: "Halloween",
-          start: moment(`${currentYear}-10-31`).startOf("day").toDate(),
-          end: moment(`${currentYear}-10-31`).endOf("day").toDate(),
-          category: "Holiday",
-          allDay: true,
-        },
-        {
-          title: "Halloween",
-          start: moment(`${nextYear}-10-31`).startOf("day").toDate(),
-          end: moment(`${nextYear}-10-31`).endOf("day").toDate(),
-          category: "Holiday",
-          allDay: true,
-        },
-        // Add more custom holidays here if needed
-      ];
-
-      return [...holidays, ...customHolidays];
+      return holidays;
     } catch (error) {
       console.error("Error fetching holidays:", error);
       return [];
@@ -197,16 +211,15 @@ const CalendarView: React.FC = () => {
   };
 
   const handleSelectEvent = async (
-    event: Event,
+    event: any,
     e: React.SyntheticEvent<HTMLElement>,
   ) => {
-    setSelectedEvent(event);
+    setSelectedEvent(event as Event);
     setShowEventPopup(true);
     setShowEditEventModal(false);
     const mouseEvent = e.nativeEvent as MouseEvent;
     setMousePosition({ x: mouseEvent.clientX, y: mouseEvent.clientY });
 
-    // If the event is a LeetCode event, fetch the corresponding note
     if (event.category === "LeetCode" && currentUser?.email) {
       const noteTitle = event.title.replace("", "");
       const notesCollectionRef = collection(
@@ -234,7 +247,6 @@ const CalendarView: React.FC = () => {
 
   const handleEditClick = () => {
     if (selectedEvent) {
-      console.log("Editing event:", selectedEvent); // Debug: Log selected event details
       setShowEditEventModal(true);
       setShowEventPopup(false);
     }
@@ -275,15 +287,12 @@ const CalendarView: React.FC = () => {
       return;
     }
 
-    // Ensure consistent title format for LeetCode events
     const title =
       newEvent.category === "LeetCode" ? `${newEvent.title}` : newEvent.title;
 
-    console.log("Saving event:", { ...newEvent, title });
-
     try {
       const eventToSave = {
-        title: title, // Use normalized title
+        title,
         start: newEvent.start,
         end: newEvent.end ?? null,
         priority: newEvent.priority || "Normal",
@@ -300,20 +309,17 @@ const CalendarView: React.FC = () => {
       );
 
       if (newEvent.id) {
-        // Update existing event
         const eventDocRef = doc(eventsCollectionRef, newEvent.id);
         await updateDoc(eventDocRef, eventToSave);
 
-        setEvents((prevEvents) => {
-          const updatedEvents = prevEvents.map((evt) =>
+        setEvents((prevEvents) =>
+          prevEvents.map((evt) =>
             evt.id === newEvent.id
               ? { ...evt, ...eventToSave, id: newEvent.id }
               : evt,
-          );
-          return updatedEvents;
-        });
+          ),
+        );
       } else {
-        // Add new event
         const docRef = await addDoc(eventsCollectionRef, eventToSave);
         const newEventWithId = { ...eventToSave, id: docRef.id };
 
@@ -326,7 +332,7 @@ const CalendarView: React.FC = () => {
     handleCloseModal();
   };
 
-  const eventPropGetter = (event: Event) => {
+  const eventPropGetter: EventPropGetter<object> = (event: any) => {
     const backgroundColor = categoryColors[event.category || "General"];
     const isDimmed =
       isDimming && (!selectedEvent || selectedEvent.id !== event.id);
@@ -336,6 +342,9 @@ const CalendarView: React.FC = () => {
         backgroundColor,
         color: "white",
         opacity: isDimmed ? 0.5 : 1,
+        whiteSpace: "normal",
+        wordWrap: "break-word",
+        overflow: "hidden",
       },
     };
   };
@@ -345,9 +354,12 @@ const CalendarView: React.FC = () => {
       <h1 className="text-2xl sm:text-3xl font-bold mb-4">Calendar View</h1>
 
       {/* Category Colors Legend */}
-      <div className="flex space-x-4 mb-4">
+      <div className="grid grid-cols-2 gap-4 mb-4 md:flex md:flex-nowrap md:space-x-4">
         {Object.entries(categoryColors).map(([category, color]) => (
-          <div key={category} className="flex items-center space-x-2">
+          <div
+            key={category}
+            className="flex items-center space-x-2 mb-2 md:mb-0"
+          >
             <span
               className="rounded w-4 h-4"
               style={{ backgroundColor: color }}
@@ -357,23 +369,25 @@ const CalendarView: React.FC = () => {
         ))}
       </div>
 
-      <Calendar
+      <DragAndDropCalendar
         localizer={localizer}
         events={events}
-        startAccessor="start"
-        endAccessor={(event: Event) => event.end || event.start}
+        startAccessor={(event: any) => event.start}
+        endAccessor={(event: any) => event.end || event.start}
         selectable
-        onSelectSlot={handleSelectSlot}
+        resizable
         onSelectEvent={handleSelectEvent}
+        onSelectSlot={handleSelectSlot}
+        onEventDrop={moveEvent} // For drag-and-drop
+        onEventResize={resizeEvent} // For resizing (change end time)
         style={{ height: "75vh" }}
         views={[Views.DAY, Views.WEEK, Views.MONTH]}
         step={30}
         timeslots={1}
-        defaultView={Views.WEEK}
         min={new Date(1970, 1, 1, 8, 0, 0)}
         max={new Date(1970, 1, 1, 23, 0, 0)}
+        defaultView={Views.WEEK}
         eventPropGetter={eventPropGetter}
-        className="text-xs sm:text-sm"
       />
 
       {/* Add Event Modal */}
@@ -397,7 +411,7 @@ const CalendarView: React.FC = () => {
       {showEditEventModal && selectedEvent && (
         <CalendarItemAdd
           initialData={{
-            id: selectedEvent.id, // Ensure this is passed to maintain consistency
+            id: selectedEvent.id,
             title: selectedEvent.title,
             start: selectedEvent.start.toISOString(),
             end: selectedEvent.end ? selectedEvent.end.toISOString() : "",
@@ -408,7 +422,6 @@ const CalendarView: React.FC = () => {
           }}
           onSave={(event) => {
             if (selectedEvent?.id) {
-              // Retain the id for the edited event
               event.id = selectedEvent.id;
             }
             handleSaveEvent(event);

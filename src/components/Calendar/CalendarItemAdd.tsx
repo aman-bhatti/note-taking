@@ -2,7 +2,16 @@ import React, { useState, useEffect } from "react";
 import moment from "moment";
 import { useAuth } from "../../auth/AuthContext";
 import { db } from "../../firebase";
-import { collection, addDoc, doc } from "firebase/firestore";
+import {
+  updateDoc,
+  setDoc,
+  getDocs,
+  query,
+  where,
+  doc,
+  addDoc,
+  collection,
+} from "firebase/firestore";
 
 interface CalendarItemFormProps {
   initialData: {
@@ -99,7 +108,6 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
     let endDateTime: Date | undefined;
 
     if (formData.category === "LeetCode") {
-      // Don't set end time for LeetCode events
       endDateTime = undefined;
     } else if (formData.allDay) {
       startDateTime = moment(formData.startDate).startOf("day");
@@ -111,26 +119,43 @@ const CalendarItemAdd: React.FC<CalendarItemFormProps> = ({
     const event: CalendarEvent = {
       title: formData.title,
       start: startDateTime.toDate(),
-      end: endDateTime, // Assign end only if it's not undefined
+      end: endDateTime,
       priority: formData.priority,
       status: formData.status,
       category: formData.category,
       allDay: formData.allDay,
     };
 
-    // Automatically create a new note if the category is "LeetCode"
     if (formData.category === "LeetCode" && currentUser) {
       const userDocRef = doc(db, "users", currentUser.email!);
       const notesCollectionRef = collection(userDocRef, "notes");
 
-      await addDoc(notesCollectionRef, {
-        title: formData.title,
-        content: `LeetCode event: ${formData.title}`,
-        category: "LeetCode",
-        createdAt: new Date(),
-        status: "In Progress",
-        leetcodeLink: "", // Optionally include a placeholder for the link if needed
-      });
+      if (isEdit && initialData.id) {
+        // If this is an edit, find the existing note and update it
+        const noteQuery = query(
+          notesCollectionRef,
+          where("title", "==", initialData.title),
+        );
+        const querySnapshot = await getDocs(noteQuery);
+        const noteToUpdate = querySnapshot.docs[0]; // Assuming there is one note per event
+
+        if (noteToUpdate) {
+          const noteDocRef = doc(notesCollectionRef, noteToUpdate.id);
+          await updateDoc(noteDocRef, {
+            title: formData.title,
+            updatedAt: new Date(),
+          });
+        }
+      } else {
+        // If this is a new event, create a new note
+        await addDoc(notesCollectionRef, {
+          title: formData.title,
+          category: "LeetCode",
+          createdAt: new Date(),
+          status: "In Progress",
+          leetcodeLink: "",
+        });
+      }
     }
 
     onSave(event);

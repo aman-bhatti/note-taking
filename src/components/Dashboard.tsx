@@ -60,7 +60,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       {/* Main Content */}
       <main className="flex-grow container mx-auto px-4 py-4">
         <div className="max-w-7xl mx-auto">

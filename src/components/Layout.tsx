@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,13 +9,14 @@ import {
   faCheck,
   faCalendar,
   faHome,
-} from "@fortawesome/free-solid-svg-icons"; // Import faHome
+} from "@fortawesome/free-solid-svg-icons";
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser, userName, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Define paths where the header should not be shown
   const noHeaderPaths = ["/login", "/signup"];
@@ -23,6 +24,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const handleLogout = async () => {
     try {
       await logout();
+      setDropdownOpen(false); // Close the dropdown
       navigate("/login");
     } catch (error) {
       console.error("Failed to log out", error);
@@ -33,8 +35,30 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     setDropdownOpen(!dropdownOpen);
   };
 
+  // Close dropdown if clicked outside of it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setDropdownOpen(false);
+      }
+    };
+
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       {/* Conditionally render the header */}
       {!noHeaderPaths.includes(location.pathname) && (
         <header className="bg-white shadow-lg rounded-lg p-4 container mx-auto mt-8">
@@ -45,7 +69,13 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             >
               <FontAwesomeIcon icon={faHome} className="mr-2" />
               <span className="hidden sm:inline">Welcome, </span>
-              <span>{userName ? userName : currentUser?.email}</span>
+              <span>
+                {userName
+                  ? userName
+                  : currentUser?.displayName
+                    ? currentUser.displayName
+                    : currentUser?.email}
+              </span>
             </Link>
             <nav className="flex flex-wrap items-center space-x-4 mt-2 sm:mt-0">
               <Link
@@ -70,7 +100,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <span className="hidden sm:inline">Calendar</span>
               </Link>
               {/* Profile Button with Dropdown */}
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={toggleDropdown}
                   className="text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"

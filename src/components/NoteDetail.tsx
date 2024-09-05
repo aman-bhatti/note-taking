@@ -84,18 +84,15 @@ const NoteDetail: React.FC = () => {
 
         const completionDate = isChecked ? new Date() : null;
 
+        // Update the note status and completion date
         await updateDoc(noteDocRef, {
           status: isChecked ? "Complete" : "In Progress",
           completedAt: completionDate
             ? Timestamp.fromDate(completionDate)
-            : null, // Ensure consistent storage format
+            : null,
         });
 
-        // Normalize title for consistency
-        const eventTitle = `${note.title}`;
-        console.log("Searching for events with title:", eventTitle);
-
-        // Update corresponding calendar event
+        // Find and update the corresponding calendar event
         const eventsCollectionRef = collection(
           db,
           "users",
@@ -104,29 +101,20 @@ const NoteDetail: React.FC = () => {
         );
         const eventsQuery = query(
           eventsCollectionRef,
-          where("title", "==", eventTitle),
+          where("title", "==", note.title),
         );
         const eventSnapshot = await getDocs(eventsQuery);
 
-        console.log(
-          "Events to update:",
-          eventSnapshot.docs.map((doc) => doc.data()),
-        );
-
         eventSnapshot.forEach(async (eventDoc) => {
           await updateDoc(eventDoc.ref, {
+            status: isChecked ? "Complete" : "In Progress",
             end: completionDate
               ? Timestamp.fromDate(completionDate)
               : eventDoc.data().start, // Update end date to current date if completed
-            status: isChecked ? "Complete" : "In Progress",
           });
-          console.log(
-            `Updated event ${eventDoc.id} with completion date:`,
-            completionDate,
-          );
         });
 
-        // Update local state
+        // Update the local note state to reflect changes
         setNote({
           ...note,
           status: isChecked ? "Complete" : "In Progress",

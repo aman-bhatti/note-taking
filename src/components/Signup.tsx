@@ -39,7 +39,7 @@ const Signup: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-white">
       <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-lg">
         <h2 className="text-2xl font-bold text-center mb-6">
           Create a New Account
@@ -55,7 +55,7 @@ const Signup: React.FC = () => {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-black rounded-md"
             />
           </div>
           <div className="mb-4">
