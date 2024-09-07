@@ -270,12 +270,20 @@ const Todo: React.FC = () => {
     if (currentUser) {
       const userDocRef = doc(db, "users", currentUser.email!);
       const todoDocRef = doc(userDocRef, "todos", todoId);
+
+      // Create a new Date object and set it to noon UTC
+      let adjustedDueDate = null;
+      if (editDueDate) {
+        adjustedDueDate = new Date(editDueDate);
+        adjustedDueDate.setUTCHours(12, 0, 0, 0);
+      }
+
       const updatedTodo = {
         title: editTitle,
         description: editDescription,
         category: editCategory,
         importance: editImportance,
-        dueDate: editDueDate ? editDueDate.toISOString() : null,
+        dueDate: adjustedDueDate ? adjustedDueDate.toISOString() : null,
         linkedNoteId: editLinkedNoteId || null,
         completed: false,
         tasks: todos.find((todo) => todo.id === todoId)?.tasks || [],
@@ -295,19 +303,19 @@ const Todo: React.FC = () => {
         const eventDocRef = doc(eventsCollectionRef, eventDoc.id);
         const updatedEvent = {
           title: editTitle,
-          start: editDueDate ? editDueDate.toISOString() : null,
-          end: editDueDate ? editDueDate.toISOString() : null,
+          start: adjustedDueDate ? adjustedDueDate.toISOString() : null,
+          end: adjustedDueDate ? adjustedDueDate.toISOString() : null,
           description: editDescription,
           category: "Todo",
           allDay: true,
         };
         await updateDoc(eventDocRef, updatedEvent);
-      } else if (addToCalendar && editDueDate) {
+      } else if (addToCalendar && adjustedDueDate) {
         // If the event doesn't exist and addToCalendar is true, create a new event
         const newEvent = {
           title: editTitle,
-          start: editDueDate.toISOString(),
-          end: editDueDate.toISOString(),
+          start: adjustedDueDate.toISOString(),
+          end: adjustedDueDate.toISOString(),
           description: editDescription,
           category: "Todo",
           allDay: true,

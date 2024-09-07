@@ -54,18 +54,23 @@ const TodoDetail: React.FC = () => {
           const todoData = todoSnapshot.data();
           setTodo(todoData);
           setTitle(todoData.title);
-          setOriginalTitle(todoData.title); // Store original title
+          setOriginalTitle(todoData.title);
           if (todoData.dueDate) {
-            const localDueDate = new Date(todoData.dueDate);
+            // Convert the Firestore timestamp to a Date object
+            const dueDateObj = new Date(todoData.dueDate);
+            // Adjust for local timezone
+            const localDueDate = new Date(
+              dueDateObj.getTime() + dueDateObj.getTimezoneOffset() * 60000,
+            );
             setDueDate(localDueDate);
-            setOriginalDueDate(localDueDate); // Store original due date
+            setOriginalDueDate(localDueDate);
           } else {
             setDueDate(null);
             setOriginalDueDate(null);
           }
 
           setImportance(todoData.importance);
-          setOriginalImportance(todoData.importance); // Store original importance
+          setOriginalImportance(todoData.importance);
           setTasks(todoData.tasks || []);
 
           // Fetch linked note title if linkedNoteId exists
@@ -98,19 +103,25 @@ const TodoDetail: React.FC = () => {
       const todoDocRef = doc(db, "users", currentUser.email!, "todos", todoId);
       const updatedTodo = {
         title,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+        dueDate: dueDate
+          ? new Date(
+              dueDate.getFullYear(),
+              dueDate.getMonth(),
+              dueDate.getDate(),
+            ).toISOString()
+          : null,
         importance,
-        tasks: todo.tasks, // Keep tasks unchanged during update
+        tasks: todo.tasks,
       };
       await updateDoc(todoDocRef, updatedTodo);
       setTodo((prev: any) => ({
         ...prev,
         ...updatedTodo,
       }));
-      setOriginalTitle(title); // Update the original title after successful update
-      setOriginalDueDate(dueDate); // Update the original due date
-      setOriginalImportance(importance); // Update the original importance
-      setIsEditingTodo(false); // Exit editing mode after update
+      setOriginalTitle(title);
+      setOriginalDueDate(dueDate);
+      setOriginalImportance(importance);
+      setIsEditingTodo(false);
     }
   };
 
@@ -287,7 +298,14 @@ const TodoDetail: React.FC = () => {
               <input
                 type="date"
                 value={dueDate ? dueDate.toISOString().split("T")[0] : ""}
-                onChange={(e) => setDueDate(new Date(e.target.value))}
+                onChange={(e) => {
+                  const selectedDate = new Date(e.target.value);
+                  const adjustedDate = new Date(
+                    selectedDate.getTime() +
+                      selectedDate.getTimezoneOffset() * 60000,
+                  );
+                  setDueDate(adjustedDate);
+                }}
                 className="mt-1 p-2 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
               />
             ) : dueDate ? (
