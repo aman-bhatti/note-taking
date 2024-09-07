@@ -8,6 +8,8 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  where,
+  query,
 } from "firebase/firestore";
 import { Link } from "react-router-dom";
 import {
@@ -80,6 +82,7 @@ const Todo: React.FC = () => {
   >("Medium");
   const [editDueDate, setEditDueDate] = useState<Date | null>(new Date());
   const [editLinkedNoteId, setEditLinkedNoteId] = useState("");
+  const [addToCalendar, setAddToCalendar] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -142,7 +145,9 @@ const Todo: React.FC = () => {
       if (currentUser) {
         const userDocRef = doc(db, "users", currentUser.email!);
         const todosCollectionRef = collection(userDocRef, "todos");
-        await addDoc(todosCollectionRef, {
+
+        // Add the new todo to the todos collection
+        const newTodoRef = await addDoc(todosCollectionRef, {
           title,
           description,
           category,
@@ -153,6 +158,23 @@ const Todo: React.FC = () => {
           dueDate: dueDate ? dueDate.toISOString() : null,
           tasks: [],
         });
+
+        // Add the todo event to the existing "events" collection if the checkbox is checked
+        if (addToCalendar && dueDate) {
+          const eventsCollectionRef = collection(userDocRef, "events");
+          const event = {
+            title,
+            start: dueDate.toISOString(),
+            end: dueDate.toISOString(),
+            category: "Todo",
+            allDay: true,
+            todoId: newTodoRef.id, // Link the event to the todo
+          };
+          await addDoc(eventsCollectionRef, event);
+          console.log("Event added to calendar:", event);
+        }
+
+        // Reset fields after successful add
         setShowAddTodo(false);
         setTitle("");
         setDescription("");
@@ -160,6 +182,7 @@ const Todo: React.FC = () => {
         setImportance("Medium");
         setLinkedNoteId("");
         setDueDate(new Date());
+        setAddToCalendar(false);
         fetchTodos();
       }
     } catch (error) {
@@ -258,13 +281,48 @@ const Todo: React.FC = () => {
         tasks: todos.find((todo) => todo.id === todoId)?.tasks || [],
       };
       await updateDoc(todoDocRef, updatedTodo);
-      fetchTodos();
+
+      // Update the corresponding event in the calendar
+      const eventsCollectionRef = collection(userDocRef, "events");
+      const eventQuery = query(
+        eventsCollectionRef,
+        where("todoId", "==", todoId),
+      );
+      const eventQuerySnapshot = await getDocs(eventQuery);
+
+      if (!eventQuerySnapshot.empty) {
+        const eventDoc = eventQuerySnapshot.docs[0];
+        const eventDocRef = doc(eventsCollectionRef, eventDoc.id);
+        const updatedEvent = {
+          title: editTitle,
+          start: editDueDate ? editDueDate.toISOString() : null,
+          end: editDueDate ? editDueDate.toISOString() : null,
+          description: editDescription,
+          category: "Todo",
+          allDay: true,
+        };
+        await updateDoc(eventDocRef, updatedEvent);
+      } else if (addToCalendar && editDueDate) {
+        // If the event doesn't exist and addToCalendar is true, create a new event
+        const newEvent = {
+          title: editTitle,
+          start: editDueDate.toISOString(),
+          end: editDueDate.toISOString(),
+          description: editDescription,
+          category: "Todo",
+          allDay: true,
+          todoId: todoId, // Link the event to the todo
+        };
+        await addDoc(eventsCollectionRef, newEvent);
+      }
+
+      fetchTodos(); // Refetch todos to update the list
 
       // Remove the editing context for the current todo
       const key = `${todoId}-${context}`;
       setEditingContext((prev) => {
         const newSet = new Set(prev);
-        newSet.delete(key); // Remove the key from the set
+        newSet.delete(key);
         return newSet;
       });
     }
@@ -721,6 +779,18 @@ const Todo: React.FC = () => {
                 ))}
               </select>
             </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Add to Calendar
+              </label>
+              <input
+                type="checkbox"
+                checked={addToCalendar}
+                onChange={(e) => setAddToCalendar(e.target.checked)}
+                className="mt-1 p-2"
+              />
+            </div>
+
             <button
               type="submit"
               className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors w-full"

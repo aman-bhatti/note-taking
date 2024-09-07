@@ -9,6 +9,7 @@ import { db } from "../../firebase";
 import {
   collection,
   getDocs,
+  getDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -30,6 +31,7 @@ const categoryColors: { [key: string]: string } = {
   Work: "#4caf50",
   Personal: "#ff5722",
   LeetCode: "#fda31c",
+  Todo: "#ff55aa",
 };
 
 interface Event {
@@ -41,6 +43,7 @@ interface Event {
   status?: string;
   category?: string;
   allDay?: boolean;
+  description?: string;
 }
 
 const CalendarView: React.FC = () => {
@@ -78,11 +81,12 @@ const CalendarView: React.FC = () => {
 
         const userEvents: Event[] = querySnapshot.docs.map((doc) => {
           const data = doc.data();
+
           return {
             id: doc.id,
             title: data.title,
-            start: data.start.toDate(), // Convert Firestore Timestamp to Date
-            end: data.end ? data.end.toDate() : null,
+            start: convertToDate(data.start), // Use the helper function to handle different types
+            end: data.end ? convertToDate(data.end) : null,
             priority: data.priority || "Normal",
             status: data.status || "Pending",
             category: data.category || "General",
@@ -92,6 +96,19 @@ const CalendarView: React.FC = () => {
 
         const holidays = await fetchHolidays();
         setEvents([...userEvents, ...holidays]);
+      }
+    };
+
+    // Helper function to handle different data types
+    const convertToDate = (input: any): Date => {
+      if (input instanceof Date) {
+        return input; // If it's already a Date object
+      } else if (typeof input === "string") {
+        return new Date(input); // If it's an ISO string
+      } else if (input?.toDate) {
+        return input.toDate(); // If it's a Firestore Timestamp
+      } else {
+        throw new Error("Invalid date format"); // Handle unexpected cases
       }
     };
 
@@ -220,6 +237,24 @@ const CalendarView: React.FC = () => {
     const mouseEvent = e.nativeEvent as MouseEvent;
     setMousePosition({ x: mouseEvent.clientX, y: mouseEvent.clientY });
 
+    if (event.category === "Todo" && currentUser?.email) {
+      // Get the corresponding todo document from Firestore using the event ID
+      const userDocRef = doc(db, "users", currentUser.email, "todos", event.id);
+      const todoDoc = await getDoc(userDocRef); // Fetch the document
+
+      if (todoDoc.exists()) {
+        const todoData = todoDoc.data();
+        // Update the selectedEvent with the todo's description
+        setSelectedEvent((prevEvent) => ({
+          ...prevEvent,
+          title: prevEvent?.title || "", // Default empty string if title is undefined
+          start: prevEvent?.start || new Date(), // Default current date if start is undefined
+          description: todoData.description || "No description provided", // Fetch and set the todo description
+          category: prevEvent?.category || "Todo", // Keep the category as "Todo"
+        }));
+      }
+    }
+
     if (event.category === "LeetCode" && currentUser?.email) {
       const noteTitle = event.title.replace("", "");
       const notesCollectionRef = collection(
@@ -299,6 +334,7 @@ const CalendarView: React.FC = () => {
         status: newEvent.status || "Pending",
         category: newEvent.category || "General",
         allDay: newEvent.allDay || false,
+        description: newEvent.description || "",
       };
 
       const eventsCollectionRef = collection(
@@ -448,38 +484,50 @@ const CalendarView: React.FC = () => {
           >
             ✕
           </button>
-          <h2 className="text-lg font-bold">{selectedEvent.title}</h2>
-          <p>
-            {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")} -{" "}
-            {selectedEvent.end
-              ? moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")
-              : "End time not set"}
-          </p>
-          {selectedEvent.category === "LeetCode" && connectedNoteId && (
-            <p>
-              <a
-                href="#"
-                onClick={() => navigate(`/note/${connectedNoteId}`)}
-                className="text-blue-500 underline"
-              >
-                View connected note
-              </a>
-            </p>
-          )}
-          {selectedEvent.category !== "Holiday" && (
-            <div className="flex justify-end space-x-2 mt-2">
-              <button
-                onClick={handleEditClick}
-                className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
-              >
-                Edit
-              </button>
-              <button
-                onClick={handleDeleteEvent}
-                className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-              >
-                Delete
-              </button>
+          {/* Check if the event is a "Todo" */}
+          {selectedEvent.category === "Todo" ? (
+            <div>
+              <h2 className="text-lg font-bold">{selectedEvent.title}</h2>
+              <p>{moment(selectedEvent.start).format("MMMM Do YYYY")}</p>
+              <p>{selectedEvent.description}</p> {/* This will now work */}
+            </div>
+          ) : (
+            <div>
+              {/* For non-Todo events, show the default modal content */}
+              <h2 className="text-lg font-bold">{selectedEvent.title}</h2>
+              <p>
+                {moment(selectedEvent.start).format("MMMM Do YYYY, h:mm A")} -{" "}
+                {selectedEvent.end
+                  ? moment(selectedEvent.end).format("MMMM Do YYYY, h:mm A")
+                  : "End time not set"}
+              </p>
+              {selectedEvent.category === "LeetCode" && connectedNoteId && (
+                <p>
+                  <a
+                    href="#"
+                    onClick={() => navigate(`/note/${connectedNoteId}`)}
+                    className="text-blue-500 underline"
+                  >
+                    View connected note
+                  </a>
+                </p>
+              )}
+              {selectedEvent.category !== "Holiday" && (
+                <div className="flex justify-end space-x-2 mt-2">
+                  <button
+                    onClick={handleEditClick}
+                    className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={handleDeleteEvent}
+                    className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
