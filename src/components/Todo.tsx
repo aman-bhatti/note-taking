@@ -295,9 +295,9 @@ const Todo: React.FC = () => {
         todo.title.toLowerCase().includes(searchQuery.toLowerCase()),
       );
     }
-
     // Sort and filter overdue tasks
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     filteredTodos.forEach((todo) => {
       if (todo.dueDate && new Date(todo.dueDate) < now && !todo.completed) {
         todo.isOverdue = true;
