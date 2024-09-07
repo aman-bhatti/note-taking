@@ -65,3 +65,18 @@ code {
 .line-through {
   text-decoration: line-through;
 }
+
+.prose ul {
+  list-style-type: disc; /* Default bullet style */
+  padding-left: 1.5rem;
+}
+
+.prose ul ul {
+  list-style-type: circle; /* Second-level bullets */
+  padding-left: 1.5rem;
+}
+
+.prose ul ul ul {
+  list-style-type: square; /* Third-level bullets */
+  padding-left: 1.5rem;
+}
