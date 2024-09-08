@@ -8,7 +8,18 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import MonacoEditor from "@monaco-editor/react";
-import ToggleSwitch from "./toggle"; // Import the ToggleSwitch component
+import ToggleSwitch from "./toggle";
+import ResizableImage from "../components/Resizeable/resizeableimage";
+
+const extractImageUrls = (markdownContent: string) => {
+  const imageUrls = [];
+  const regex = /!\[.*?\]\((.*?)\)/g; // Regular expression to match markdown image syntax ![alt](url)
+  let match;
+  while ((match = regex.exec(markdownContent)) !== null) {
+    imageUrls.push(match[1]); // Capture the image URL
+  }
+  return imageUrls;
+};
 
 const NewNote: React.FC = () => {
   const { currentUser } = useAuth();
@@ -18,6 +29,9 @@ const NewNote: React.FC = () => {
   const [leetcodeLink, setLeetcodeLink] = useState(""); // State for LeetCode link
   const [useMonacoEditor, setUseMonacoEditor] = useState(false); // Default to Text Editor
   const navigate = useNavigate();
+  const [imageSizes, setImageSizes] = useState<{
+    [src: string]: { width: number; height: number };
+  }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,15 +41,25 @@ const NewNote: React.FC = () => {
         const notesCollectionRef = collection(userDocRef, "notes");
         const noteCreationDate = new Date();
 
-        const newNote = {
+        // Extract current images from the content
+        const currentImages = extractImageUrls(content);
+
+        // Prepare the new note data
+        const newNote: any = {
           title,
           content,
-          category, // Save the category along with other note details
+          category,
           createdAt: noteCreationDate,
           leetcodeLink: category === "LeetCode" ? leetcodeLink : "",
-          status: "In Progress", // Default status for new notes
+          status: "In Progress",
         };
 
+        // Only add imageSizes if there are images in the content
+        if (currentImages.length > 0) {
+          newNote.imageSizes = imageSizes;
+        }
+
+        // Save the new note to Firestore
         await addDoc(notesCollectionRef, newNote);
 
         // If the category is LeetCode, also add a calendar event
@@ -63,6 +87,13 @@ const NewNote: React.FC = () => {
     } catch (error) {
       console.error("Error creating note:", error);
     }
+  };
+
+  const handleImageResize = (src: string, width: number, height: number) => {
+    setImageSizes((prevSizes) => ({
+      ...prevSizes,
+      [src]: { width, height },
+    }));
   };
 
   const handleToggle = () => {
@@ -170,6 +201,25 @@ const NewNote: React.FC = () => {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeHighlight]}
+            components={{
+              img: ({ node, ...props }) => {
+                const src = props.src || ""; // Ensure src is defined
+                const initialWidth = imageSizes[src]?.width || 300; // Load saved width
+                const initialHeight = imageSizes[src]?.height || 200; // Load saved height
+
+                return (
+                  <ResizableImage
+                    src={src}
+                    alt={props.alt || ""}
+                    initialWidth={initialWidth}
+                    initialHeight={initialHeight}
+                    onResizeComplete={(width, height) =>
+                      handleImageResize(src, width, height)
+                    }
+                  />
+                );
+              },
+            }}
           >
             {content}
           </ReactMarkdown>

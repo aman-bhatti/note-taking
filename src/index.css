@@ -80,3 +80,10 @@ code {
   list-style-type: square; /* Third-level bullets */
   padding-left: 1.5rem;
 }
+
+.custom-image-class {
+  max-width: 10%;
+  height: auto;
+  display: block;
+  margin: 0 auto; /* Center images */
+}

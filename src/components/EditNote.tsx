@@ -1,22 +1,14 @@
-// src/components/EditNote.tsx
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { db } from "../firebase";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  query,
-  collection,
-  where,
-  getDocs,
-} from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import MonacoEditor from "@monaco-editor/react";
-import ToggleSwitch from "./toggle"; // Import the ToggleSwitch component
+import ToggleSwitch from "./toggle";
+import ResizableImage from "./Resizeable/resizeableimage";
 
 const EditNote: React.FC = () => {
   const { currentUser } = useAuth();
@@ -24,7 +16,11 @@ const EditNote: React.FC = () => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("");
-  const [useMonacoEditor, setUseMonacoEditor] = useState(false); // Default to Text Editor
+  const [imageSizes, setImageSizes] = useState<{
+    [src: string]: { width: number; height: number };
+  }>({});
+  const [initialImages, setInitialImages] = useState<string[]>([]);
+  const [useMonacoEditor, setUseMonacoEditor] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,6 +39,8 @@ const EditNote: React.FC = () => {
           setTitle(noteData.title);
           setContent(noteData.content);
           setCategory(noteData.category);
+          setImageSizes(noteData.imageSizes || {});
+          setInitialImages(Object.keys(noteData.imageSizes || {})); // Store initial images
         } else {
           console.error("No such note!");
         }
@@ -51,6 +49,17 @@ const EditNote: React.FC = () => {
 
     fetchNote();
   }, [currentUser, noteId]);
+
+  // Helper function to extract all image URLs from markdown content
+  const extractImageUrls = (markdownContent: string) => {
+    const imageUrls = [];
+    const regex = /!\[.*?\]\((.*?)\)/g;
+    let match;
+    while ((match = regex.exec(markdownContent)) !== null) {
+      imageUrls.push(match[1]);
+    }
+    return imageUrls;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,61 +73,50 @@ const EditNote: React.FC = () => {
           noteId,
         );
 
-        // Fetch the current note to get the original title
-        const noteDoc = await getDoc(noteDocRef);
-        const originalTitle = noteDoc.exists() ? noteDoc.data().title : "";
+        // Extract current images from the content
+        const currentImages = extractImageUrls(content);
 
-        // Update the note with the new title and content
+        // Compare initialImages with currentImages to detect removed images
+        const removedImages = initialImages.filter(
+          (img) => !currentImages.includes(img),
+        );
+
+        // Remove image sizes for any deleted images
+        const updatedImageSizes = { ...imageSizes };
+        removedImages.forEach((img) => {
+          delete updatedImageSizes[img];
+        });
+
+        // Update the note in Firestore, removing any deleted image sizes
         await updateDoc(noteDocRef, {
           title,
           content,
           category,
-          updatedAt: new Date(), // Track when the note was last updated
+          imageSizes: updatedImageSizes, // Update image sizes, removing deleted ones
+          updatedAt: new Date(),
         });
-
-        // If the category is LeetCode, update the corresponding calendar event
-        if (category === "LeetCode" && originalTitle) {
-          const eventsCollectionRef = collection(
-            db,
-            "users",
-            currentUser.email!,
-            "events",
-          );
-
-          // Query for the calendar event with the old title (before the update)
-          const eventsQuery = query(
-            eventsCollectionRef,
-            where("title", "==", originalTitle), // Use original title to find the event
-          );
-          const eventSnapshot = await getDocs(eventsQuery);
-
-          // Update the calendar event with the new title and other details
-          if (!eventSnapshot.empty) {
-            const eventDoc = eventSnapshot.docs[0]; // Assuming there's only one corresponding event
-            const eventDocRef = doc(eventsCollectionRef, eventDoc.id);
-
-            await updateDoc(eventDocRef, {
-              title, // Use the updated title from the note
-              status: "In Progress", // Update other fields as necessary
-              updatedAt: new Date(), // Track when the event was last updated
-            });
-          }
-        }
 
         // Redirect back to the dashboard after updating
         navigate("/dashboard");
       }
     } catch (error) {
-      console.error("Error updating note or calendar event:", error);
+      console.error("Error updating note:", error);
     }
   };
 
+  const handleImageResize = (src: string, width: number, height: number) => {
+    setImageSizes((prevSizes) => ({
+      ...prevSizes,
+      [src]: { width, height },
+    }));
+  };
+
   const handleCancel = () => {
-    navigate(`/note/${noteId}`); // Navigate back to the dashboard or the previous page
+    navigate(`/note/${noteId}`);
   };
 
   const handleToggle = () => {
-    setUseMonacoEditor(!useMonacoEditor); // Toggle between editors
+    setUseMonacoEditor(!useMonacoEditor);
   };
 
   return (
@@ -178,9 +176,7 @@ const EditNote: React.FC = () => {
                 theme="vs-dark"
                 value={content}
                 onChange={(value) => setContent(value || "")}
-                options={{
-                  selectOnLineNumbers: true,
-                }}
+                options={{ selectOnLineNumbers: true }}
               />
             ) : (
               <textarea
@@ -215,6 +211,45 @@ const EditNote: React.FC = () => {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeHighlight]}
+            components={{
+              // Override paragraph to avoid wrapping <div> inside <p> if it contains only an image
+              p: ({ node, children }) => {
+                // Ensure that node and node.children exist
+                if (!node || !node.children || node.children.length === 0) {
+                  return <p>{children}</p>;
+                }
+
+                const firstChild = node.children[0];
+
+                // If the first child is an image, don't wrap it in a <p> tag
+                if (
+                  firstChild?.type === "element" &&
+                  firstChild.tagName === "img"
+                ) {
+                  return <>{children}</>;
+                }
+
+                // Otherwise, return the normal <p> element
+                return <p>{children}</p>;
+              },
+              img: ({ node, ...props }) => {
+                const src = props.src || "";
+                const width = imageSizes[src]?.width || 300;
+                const height = imageSizes[src]?.height || 200;
+
+                return (
+                  <ResizableImage
+                    src={src}
+                    alt={props.alt || ""}
+                    initialWidth={width}
+                    initialHeight={height}
+                    onResizeComplete={(width, height) =>
+                      handleImageResize(src, width, height)
+                    }
+                  />
+                );
+              },
+            }}
           >
             {content}
           </ReactMarkdown>

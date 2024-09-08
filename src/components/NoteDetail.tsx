@@ -179,6 +179,48 @@ const NoteDetail: React.FC = () => {
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeHighlight]}
+          components={{
+            // Override paragraph to avoid wrapping <div> inside <p> if it contains only an image
+            p: ({ node, children }) => {
+              // Ensure that node and node.children exist
+              if (!node || !node.children || node.children.length === 0) {
+                return <p>{children}</p>;
+              }
+
+              const firstChild = node.children[0];
+
+              // If the first child is an image, don't wrap it in a <p> tag
+              if (
+                firstChild?.type === "element" &&
+                firstChild.tagName === "img"
+              ) {
+                return <>{children}</>;
+              }
+
+              // Otherwise, return the normal <p> element
+              return <p>{children}</p>;
+            },
+            img: ({ node, ...props }) => {
+              const src = props.src || "";
+              const width = note.imageSizes[src]?.width || "auto";
+              const height = note.imageSizes[src]?.height || "auto";
+
+              return (
+                <img
+                  src={src}
+                  alt={props.alt || ""}
+                  width={width}
+                  height={height}
+                  style={{
+                    objectFit: "contain",
+                    maxWidth: "100%",
+                    height: "auto",
+                    pointerEvents: "none", // Disable all interactions with the image
+                  }}
+                />
+              );
+            },
+          }}
         >
           {note.content}
         </ReactMarkdown>
