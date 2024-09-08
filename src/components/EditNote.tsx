@@ -97,7 +97,7 @@ const EditNote: React.FC = () => {
         });
 
         // Redirect back to the dashboard after updating
-        navigate("/dashboard");
+        navigate(`/note/${noteId}`);
       }
     } catch (error) {
       console.error("Error updating note:", error);
