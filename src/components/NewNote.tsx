@@ -28,6 +28,7 @@ const NewNote: React.FC = () => {
   const [category, setCategory] = useState(""); // State for category
   const [leetcodeLink, setLeetcodeLink] = useState(""); // State for LeetCode link
   const [useMonacoEditor, setUseMonacoEditor] = useState(false); // Default to Text Editor
+  const [lockNote, setLockNote] = useState(false); // State for locking the note
   const navigate = useNavigate();
   const [imageSizes, setImageSizes] = useState<{
     [src: string]: { width: number; height: number };
@@ -52,6 +53,7 @@ const NewNote: React.FC = () => {
           createdAt: noteCreationDate,
           leetcodeLink: category === "LeetCode" ? leetcodeLink : "",
           status: "In Progress",
+          locked: lockNote,
         };
 
         // Only add imageSizes if there are images in the content
@@ -152,7 +154,16 @@ const NewNote: React.FC = () => {
             />
           </div>
         )}
-
+        {/* Lock Note Toggle */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Lock this note?
+          </label>
+          <ToggleSwitch
+            isOn={lockNote}
+            onToggle={() => setLockNote(!lockNote)}
+          />
+        </div>
         {/* Toggle Switch for Editor */}
         <div className="mb-4 flex items-center">
           <span className="mr-3 text-gray-700">

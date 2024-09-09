@@ -5,7 +5,7 @@ import { collection, query, getDocs, doc, orderBy } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import GraphView from "./NoteTree"; // Import the GraphView component
 import EChartsTreeView from "./TreeChart"; // Import the ECharts TreeView component
-import { FaList, FaProjectDiagram, FaSitemap } from "react-icons/fa"; // Import icons
+import { FaList, FaProjectDiagram, FaSitemap, FaLock } from "react-icons/fa"; // Import icons
 
 const Dashboard: React.FC = () => {
   const { currentUser } = useAuth();
@@ -94,8 +94,14 @@ const Dashboard: React.FC = () => {
                     className="bg-white p-6 rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer"
                     onClick={() => openNote(note.id)}
                   >
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                       {note.title}
+                      {note.locked && (
+                        <FaLock
+                          className="ml-2 text-red-500"
+                          title="Locked Note"
+                        />
+                      )}
                     </h3>
                     <p className="text-gray-500 text-sm mt-2">
                       {new Date(

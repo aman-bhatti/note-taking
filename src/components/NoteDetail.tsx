@@ -21,7 +21,13 @@ const NoteDetail: React.FC = () => {
   const { currentUser } = useAuth();
   const [note, setNote] = useState<any>(null);
   const [lastEdited, setLastEdited] = useState<Date | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [enteredPassword, setEnteredPassword] = useState("");
+  const [passwordError, setPasswordError] = useState(false);
   const navigate = useNavigate();
+
+  const password = process.env.REACT_APP_NOTE_PASSWORD;
 
   useEffect(() => {
     const fetchNote = async () => {
@@ -38,12 +44,18 @@ const NoteDetail: React.FC = () => {
           if (noteDoc.exists()) {
             const noteData = noteDoc.data();
             setNote(noteData);
+            setIsLocked(noteData.locked || false);
 
             // Set last edited date
             if (noteData.updatedAt) {
               setLastEdited(noteData.updatedAt.toDate());
             } else if (noteData.createdAt) {
               setLastEdited(noteData.createdAt.toDate());
+            }
+
+            // If the note is locked, show password prompt
+            if (noteData.locked) {
+              setShowPasswordPrompt(true);
             }
           } else {
             console.error("No such document!");
@@ -59,6 +71,15 @@ const NoteDetail: React.FC = () => {
     fetchNote();
   }, [noteId, currentUser]);
 
+  const handlePasswordSubmit = () => {
+    if (enteredPassword === password) {
+      setShowPasswordPrompt(false); // Allow access to the note
+      setPasswordError(false); // Reset error
+    } else {
+      setPasswordError(true); // Show error message
+    }
+  };
+
   const handleEdit = () => {
     navigate(`/edit-note/${noteId}`);
   };
@@ -66,6 +87,42 @@ const NoteDetail: React.FC = () => {
   const handleBackToAllNotes = () => {
     navigate("/dashboard");
   };
+
+  if (showPasswordPrompt) {
+    return (
+      <div className="container mx-auto p-4">
+        <button
+          onClick={handleBackToAllNotes}
+          className="text-blue-500 hover:underline rounded mb-4"
+        >
+          ← Back to Dashboard
+        </button>
+        <h2>This note is locked. Please enter the password to view:</h2>
+        <input
+          type="password"
+          value={enteredPassword}
+          onChange={(e) => setEnteredPassword(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === "Enter") {
+              handlePasswordSubmit();
+            }
+          }}
+          className="p-2 border rounded-md"
+        />
+        <button
+          onClick={handlePasswordSubmit}
+          className="bg-blue-500 text-white px-4 py-2 rounded ml-2"
+        >
+          Submit
+        </button>
+        {passwordError && (
+          <p className="text-red-500 mt-2">
+            Incorrect password. Please try again.
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const handleCheckboxChange = async (
     e: React.ChangeEvent<HTMLInputElement>,

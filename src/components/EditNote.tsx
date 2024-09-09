@@ -20,6 +20,7 @@ const EditNote: React.FC = () => {
     [src: string]: { width: number; height: number };
   }>({});
   const [initialImages, setInitialImages] = useState<string[]>([]);
+  const [isLocked, setIsLocked] = useState(false);
   const [useMonacoEditor, setUseMonacoEditor] = useState(false);
   const navigate = useNavigate();
 
@@ -41,6 +42,7 @@ const EditNote: React.FC = () => {
           setCategory(noteData.category);
           setImageSizes(noteData.imageSizes || {});
           setInitialImages(Object.keys(noteData.imageSizes || {})); // Store initial images
+          setIsLocked(noteData.locked || false);
         } else {
           console.error("No such note!");
         }
@@ -94,6 +96,7 @@ const EditNote: React.FC = () => {
           category,
           imageSizes: updatedImageSizes, // Update image sizes, removing deleted ones
           updatedAt: new Date(),
+          locked: isLocked,
         });
 
         // Redirect back to the dashboard after updating
@@ -188,6 +191,21 @@ const EditNote: React.FC = () => {
               ></textarea>
             )}
           </div>
+        </div>
+        {/* Lock/Unlock Note */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Lock this note
+          </label>
+          <input
+            type="checkbox"
+            checked={isLocked}
+            onChange={() => setIsLocked(!isLocked)}
+            className="mr-2 leading-tight"
+          />
+          <span>
+            {isLocked ? "This note is locked" : "This note is unlocked"}
+          </span>
         </div>
         <div className="flex justify-between">
           <button
